@@ -27,6 +27,7 @@
 
 (defvar org-note-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
 (defvar org-note-locations nil)
+(defvar org-note-drawer-name "LINKS")
 
 (defun org-note-org-id-locations-load-advice (funct)
   "`org-id-locations-load' advice updating `org-note-locations' w/ FUNCT and ARGS."
@@ -78,6 +79,51 @@
   (interactive)
   (org-id-goto (helm-org-notes-find))
   (outline-show-subtree))
+
+(defun org-note-add-link-to-drawer (link entry-delimiter)
+  "Add LINK to the links drawer, preceded by ENTRY-DELIMITER."
+  (save-excursion
+    (let ((org-log-into-drawer org-note-drawer-name))
+      (goto-char (org-log-beginning t))
+      (insert (concat ":" entry-delimiter ": " link "\n"))
+      (goto-char (org-log-beginning))
+      (forward-line -1)
+      (org-indent-drawer))))
+
+(defun helm-org-notes-log-note ()
+  "Links selected note in a log drawer for current heading.
+Also links the id of current heading in a link drawer under
+heading corresponding to selected note.  Results in a two-way
+link between two org headings."
+  (interactive)
+  (unless (eq major-mode 'org-mode)
+    (error "Cannot link notes when not in an org context"))
+  (let* ((loc-id (org-id-get-create))
+         (loc-heading (or (org-get-heading t t) (error "Not an an org-mode heading")))
+         (dest-id (helm-org-notes-find))
+         (dest-heading (let ((case-fold-search)
+                             (heading (concat
+                                       "* "
+                                       (car (rassoc dest-id org-note-locations)))))
+                         (string-match
+                          org-complex-heading-regexp
+                          heading)
+                         (or (match-string 4 heading)
+                             "UNKNOWN")))
+         (forward-link (org-make-link-string
+                        (concat "id:" dest-id)
+                        dest-heading))
+         (back-link (org-make-link-string
+                     (concat "id:" loc-id)
+                     loc-heading)))
+    ;; Insert forward link in source note
+    (org-note-add-link-to-drawer forward-link ">")
+    ;; Insert backward link in linked note
+    (save-excursion
+      (with-temp-buffer
+        (org-id-goto dest-id)
+        (org-note-add-link-to-drawer back-link "<")))
+    (message "Linked '%s' and '%s'" loc-heading dest-heading)))
 
 (provide 'org-notes)
 
