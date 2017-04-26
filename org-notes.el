@@ -25,33 +25,33 @@
 (require 'org)
 (require 'helm)
 
-(defvar org-note-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
-(defvar org-note-locations nil)
-(defvar org-note-drawer-name "LINKS")
+(defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
+(defvar org-notes-locations nil)
+(defvar org-notes-drawer-name "LINKS")
 
-(defun org-note-org-id-locations-load-advice (funct)
-  "`org-id-locations-load' advice updating `org-note-locations' w/ FUNCT and ARGS."
+(defun org-notes-org-id-locations-load-advice (funct)
+  "`org-id-locations-load' advice updating `org-notes-locations' w/ FUNCT and ARGS."
   (funcall funct)
-  (setq org-note-locations
+  (setq org-notes-locations
         (remove-if 'not
          (mapcar
-          'org-note-get-heading
+          'org-notes-get-heading
           (mapcar 'cadr (org-id-hash-to-alist org-id-locations)))))
   (message "Updated org-id-locations. Contains %d notes."
-           (length org-note-locations)))
+           (length org-notes-locations)))
 
-(advice-add 'org-id-locations-load :around 'org-note-org-id-locations-load-advice)
+(advice-add 'org-id-locations-load :around 'org-notes-org-id-locations-load-advice)
 
-(defun org-note-org-id-add-location-advice (funct &rest args)
-  "`org-id-add-location' advice updating `org-note-locations' w/ FUNCT and and id from ARGS."
+(defun org-notes-org-id-add-location-advice (funct &rest args)
+  "`org-id-add-location' advice updating `org-notes-locations' w/ FUNCT and and id from ARGS."
   (funcall funct args)
-  (let ((head-id (org-note-get-heading (car args))))
+  (let ((head-id (org-notes-get-heading (car args))))
     (when head-id
-      (add-to-list 'org-note-locations head-id))))
+      (add-to-list 'org-notes-locations head-id))))
 
-(advice-add 'org-id-add-location :around 'org-note-org-id-add-location-advice)
+(advice-add 'org-id-add-location :around 'org-notes-org-id-add-location-advice)
 
-(defun org-note-get-heading (id)
+(defun org-notes-get-heading (id)
   "Return the cons cell consisting of heading and the ID to which heading corresponds."
   (let ((addr (org-id-find id)))
     (when addr
@@ -59,38 +59,38 @@
           (org-get-agenda-file-buffer (car addr))
         (goto-char (cdr addr))
         (when (member (elt (org-heading-components) 2)
-                      org-note-accepted-tasks)
+                      org-notes-accepted-tasks)
           (cons (org-get-heading) id))
         ))))
 
-(defun helm-org-notes-lookup-note ()
-  "Wrapper for `org-note-locations'."
-  org-note-locations)
+(defun org-notes--helm-lookup-note ()
+  "Wrapper for `org-notes-locations'."
+  org-notes-locations)
 
-(defun helm-org-notes-find ()
-  "Return the org-id for a given note in the org-note-locations alist."
+(defun org-notes--helm-find ()
+  "Return the org-id for a given note in the `org-notes-locations' alist."
   (helm :sources (helm-build-sync-source "Org Notes"
-                   :candidates 'helm-org-notes-lookup-note
+                   :candidates 'org-notes--helm-lookup-note
                    :candidate-number-limit 2500)
-        :buffer "*Org Note Headerings*"))
+        :buffer "*Org Notes Headings*"))
 
-(defun helm-org-notes-goto ()
+(defun org-notes-helm-goto ()
   "Navigate to the location specified by an `helm-org-notes-find' call."
   (interactive)
-  (org-id-goto (helm-org-notes-find))
+  (org-id-goto (org-notes--helm-find))
   (outline-show-subtree))
 
-(defun org-note-add-link-to-drawer (link entry-delimiter)
+(defun org-notes-add-link-to-drawer (link entry-delimiter)
   "Add LINK to the links drawer, preceded by ENTRY-DELIMITER."
   (save-excursion
-    (let ((org-log-into-drawer org-note-drawer-name))
+    (let ((org-log-into-drawer org-notes-drawer-name))
       (goto-char (org-log-beginning t))
       (insert (concat ":" entry-delimiter ": " link "\n"))
       (goto-char (org-log-beginning))
       (forward-line -1)
       (org-indent-drawer))))
 
-(defun helm-org-notes-log-note ()
+(defun org-notes-helm-link-notes ()
   "Links selected note in a log drawer for current heading.
 Also links the id of current heading in a link drawer under
 heading corresponding to selected note.  Results in a two-way
@@ -100,11 +100,11 @@ link between two org headings."
     (error "Cannot link notes when not in an org context"))
   (let* ((loc-id (org-id-get-create))
          (loc-heading (or (org-get-heading t t) (error "Not an an org-mode heading")))
-         (dest-id (helm-org-notes-find))
+         (dest-id (org-notes--helm-find))
          (dest-heading (let ((case-fold-search)
                              (heading (concat
                                        "* "
-                                       (car (rassoc dest-id org-note-locations)))))
+                                       (car (rassoc dest-id org-notes-locations)))))
                          (string-match
                           org-complex-heading-regexp
                           heading)
@@ -117,13 +117,14 @@ link between two org headings."
                      (concat "id:" loc-id)
                      loc-heading)))
     ;; Insert forward link in source note
-    (org-note-add-link-to-drawer forward-link ">")
-    ;; Insert backward link in linked note
-    (save-excursion
-      (with-temp-buffer
-        (org-id-goto dest-id)
-        (org-note-add-link-to-drawer back-link "<")))
-    (message "Linked '%s' and '%s'" loc-heading dest-heading)))
+    (when dest-id                       ; do nothing if org-notes--helm-find is quit unexpectedly
+      (org-notes-add-link-to-drawer forward-link ">")
+      ;; Insert backward link in linked note
+      (save-excursion
+        (with-temp-buffer
+          (org-id-goto dest-id)
+          (org-notes-add-link-to-drawer back-link "<")))
+      (message "Linked '%s' and '%s'" loc-heading dest-heading))))
 
 (provide 'org-notes)
 
