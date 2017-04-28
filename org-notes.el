@@ -112,16 +112,6 @@ Group 4: tags"
   (org-id-goto (org-notes--helm-find))
   (outline-show-subtree))
 
-(defun org-notes-add-link-to-drawer (link entry-delimiter)
-  "Add LINK to the links drawer, preceded by ENTRY-DELIMITER."
-  (save-excursion
-    (let ((org-log-into-drawer org-notes-drawer-name))
-      (goto-char (org-log-beginning t))
-      (insert (concat ":" entry-delimiter ": " link "\n"))
-      (goto-char (org-log-beginning))
-      (forward-line -1)
-      (org-indent-drawer))))
-
 (defun org-notes--sort-locations (&optional source-tags)
   "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
 Sort priority for a given heading in `org-notes-locations' is
@@ -163,6 +153,50 @@ titles in `org-notes-locations'."
                                     ":" t))))))
             (cons tag-count heading-title)))))
 
+(defun org-notes--insert-link (link entry-delimiter)
+  "Insert LINK at point using `org-log-into-drawer', delimited by ENTRY-DELIMITER."
+  (goto-char (org-log-beginning t))
+  (insert (concat ":" entry-delimiter ": " link "\n"))
+  (goto-char (org-log-beginning))
+  (forward-line -1)
+  (org-indent-drawer))
+
+(defvar org-notes--insert-link-callback nil)
+
+(defun org-notes--add-link-to-drawer (link entry-delimiter &optional note)
+  "Add LINK to links drawer, preceded by ENTRY-DELIMITER, add org note iff NOTE.
+This function will add an accompanying org note to the link if
+NOTE is non-nil."
+  (save-excursion
+    (if note
+        (progn (setq-default org-log-into-drawer org-notes-drawer-name)
+               (let ((org-log-note-headings
+                      (append
+                       (list (cons 'note "Linked on %T"))
+                       (assq-delete-all
+                        'note (copy-seq org-log-note-headings)))))
+                 (call-interactively 'org-add-note)
+                 (setq org-notes--insert-link-callback
+                       ;; will this closure work? I don't htink so
+                       (apply-partially 'org-notes--insert-link
+                                        link entry-delimiter))
+                 (advice-add 'org-store-log-note
+                             :around 'org-notes--store-note-advice)))
+      (let ((org-log-into-drawer org-notes-drawer-name))
+        (org-notes--insert-link link entry-delimiter)))))
+
+
+(defun org-notes--store-note-advice (funct)
+  "Advice necessary to grab onto `org-store-log-note' w/ FUNCT."
+  (message "hellllllllo")
+  (let ((org-log-into-drawer-temp org-log-into-drawer))
+    (setq-default org-log-into-drawer org-notes-drawer-name)
+    (funcall funct)
+    (funcall org-notes--insert-link-callback)
+    (setq org-notes--insert-link-callback nil)
+    (advice-remove 'org-store-log-note
+                   'org-notes--store-note-advice)
+    (setq-default org-log-into-drawer org-log-into-drawer-temp)))
 
 (defun org-notes-helm-link-notes ()
   "Links selected note in a log drawer for current heading.
@@ -189,12 +223,12 @@ link between two org headings."
                      loc-heading)))
     (when dest-id                       ; do nothing if org-notes--helm-find is quit unexpectedly
       ;; Insert forward link in source note
-      (org-notes-add-link-to-drawer forward-link ">")
+      (org-notes--add-link-to-drawer forward-link ">" t)
       ;; Insert backward link in linked note
       (save-excursion
         (with-temp-buffer
           (org-id-goto dest-id)
-          (org-notes-add-link-to-drawer back-link "<")))
+          (org-notes--add-link-to-drawer back-link "<")))
       (message "Linked '%s' and '%s'" loc-heading dest-heading))))
 
 (provide 'org-notes)
