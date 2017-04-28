@@ -185,7 +185,7 @@ link between two org headings."
                         (concat "id:" dest-id)
                         dest-heading))
          (back-link (org-make-link-string
-                     (concat "id:" loc-id)
+                     (concat "id:" (org-id-get-create))
                      loc-heading)))
     (when dest-id                       ; do nothing if org-notes--helm-find is quit unexpectedly
       ;; Insert forward link in source note
