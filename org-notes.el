@@ -40,7 +40,8 @@
 (defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
 (defvar org-notes-locations nil)
 (defvar org-notes-drawer-name "LINKS")
-(defun org-notes--headline-regexp ()
+
+(defun org-notes--heading-regexp ()
   "Regular expression for parsing headings in `org-notes-locations'.
 Group 1: (accepted) task
 Group 2: priority cookie
@@ -49,8 +50,8 @@ Group 4: tags"
     (concat
      "^"                                ; beginning of line
      (concat "\\(" (mapconcat 'identity org-notes-accepted-tasks "\\|") "\\)?") ; match accepted tasks
-     "\\(\\[#.\\]\\)?"         ; match priority cookies, which may or may not exist
-     "\\(?: +\\(.*?\\)\\)??"             ; match base headline, which must exist
+     "\\(?: +\\(\\[#.\\]\\)\\)?"         ; match priority cookies, which may or may not exist
+     "\\(?: +\\(.*?\\)\\)??"             ; match base heading, which must exist
      "\\(?: +\\(:[[:alnum:]_@#%:]+:\\)\\)?" ; match tags, which may or may not exist
      "[ 	]*\\'"                               ; match rest of heading
      ))
@@ -89,16 +90,21 @@ Group 4: tags"
           (cons (org-get-heading) id))
         ))))
 
-(defun org-notes--helm-lookup-note ()
-  "Wrapper for `org-notes-locations'."
-  (org-notes--sort-locations (not (eq major-mode 'org-mode))))
+(defun org-notes--helm-lookup-note (source-tags)
+  "Wrapper for sorting `org-notes-locations' using SOURCE-TAGS."
+  (org-notes--sort-locations source-tags))
 
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
-  (helm :sources (helm-build-sync-source "Org Notes"
-                   :candidates 'org-notes--helm-lookup-note
-                   :candidate-number-limit 2500)
-        :buffer "*Org Notes Headings*"))
+  (let ((note-locations (org-notes--helm-lookup-note
+                         (when (eq major-mode 'org-mode)
+                           (org-get-local-tags)))))
+    (helm :sources (helm-build-sync-source "Org Notes"
+                     :candidates note-locations
+                    :candidate-number-limit 2500
+                    :multiline t
+                    :volatile t)
+         :buffer "*Org Notes Headings*")))
 
 (defun org-notes-helm-goto ()
   "Navigate to the location specified by an `helm-org-notes-find' call."
@@ -116,64 +122,46 @@ Group 4: tags"
       (forward-line -1)
       (org-indent-drawer))))
 
-(defun tester ()
-  (interactive)
-  (org-notes--helm-find))
-
-(defun tester2 ()
-  (interactive)
-  (mapc 'print (mapcar (lambda (a) (substring-no-properties (car a)))
-                       (org-notes--sort-locations))))
-
-(defun tester3 ()
-  (interactive)
-  (mapc 'print (mapcar (lambda (a) (substring-no-properties (car a)))
-                       (org-notes--helm-lookup-note))))
-
-
-(defun org-notes--sort-locations (&optional no-tags)
-  "Sort `org-notes-locations', unless NO-TAGS, by the tags in current heading.
-Tag priority for a given heading in `org-notes-locations' is
-given by the number of tags shared between it and the current
-heading (i.e., the heading of the subtree in which point is
-positioned).
+(defun org-notes--sort-locations (&optional source-tags)
+  "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
+Sort priority for a given heading in `org-notes-locations' is
+given by the number of tags shared between it and
+SOURCE-TAGS (i.e., generally the tags for the heading of the
+subtree in which point is positioned).
 
 Secondary priority is given by the string magnitudes of the
 heading titles (headings stripped of tasks, tags, priorities,
 etc).
 
-Therefore, if NO-TAGS is non-nil, this sort will ignore the tags
-of the current heading, and only sort by the magnitude of the
-heading titles in `org-notes-locations'."
-  (let ((current-headline-tags (unless no-tags (org-get-local-tags))))
-    (cl-sort
-     (copy-seq org-notes-locations)
-     (lambda (th1 th2)
-       "Predicate for sort."
-       (let ((tag-count-1 (car th1))
-             (tag-count-2 (car th2))
-             (title-1     (cdr th1))
-             (title-2     (cdr th2)))
-         (cond ((> tag-count-1 tag-count-2))
-               ((= tag-count-1 tag-count-2)
-                (string-lessp title-1 title-2)))))
-     :key (lambda (hl-id)
-            "Keys on which the predicate is applied."
-            (let* ((heading (car hl-id))
-                   (heading-title
-                    (progn (string-match
-                            (org-notes--heading-regexp) heading)
-                           (or (match-string 3 heading) "")))
-                   (tag-count
-                    (if current-heading-tags
-                        (length (remove nil
-                                 (mapcar
-                                  (lambda (tag) (member tag current-heading-tags))
-                                  (split-string
-                                   (or (match-string 4 heading) "")
-                                   ":" t))))
-                      0)))
-              (cons tag-count heading-title))))))
+Therefore, if SOURCE-TAGS is nil, this sort will ignore tags
+during the sort, and only sort by the magnitude of the heading
+titles in `org-notes-locations'."
+  (cl-sort
+   (copy-seq org-notes-locations)
+   (lambda (th1 th2)
+     "Predicate for sort."
+     (let ((tag-count-1 (car th1))
+           (tag-count-2 (car th2))
+           (title-1     (cdr th1))
+           (title-2     (cdr th2)))
+       (cond ((> tag-count-1 tag-count-2))
+             ((= tag-count-1 tag-count-2)
+              (string-lessp title-1 title-2)))))
+   :key (lambda (hl-id)
+          "Keys on which the predicate is applied."
+          (let* ((heading (car hl-id))
+                 (heading-title
+                  (progn (string-match
+                          (org-notes--heading-regexp) heading)
+                         (or (match-string 3 heading) "")))
+                 (tag-count
+                  (length (remove nil
+                                  (mapcar
+                                   (lambda (tag) (member tag source-tags))
+                                   (split-string
+                                    (or (match-string 4 heading) "")
+                                    ":" t))))))
+            (cons tag-count heading-title)))))
 
 
 (defun org-notes-helm-link-notes ()
@@ -187,9 +175,9 @@ link between two org headings."
   (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
          (dest-id (org-notes--helm-find))
          (dest-heading (let ((case-fold-search)
-                             (heading (car (rassoc dest-id org-notes-locs))))
+                             (heading (car (rassoc dest-id org-notes-locations))))
                          (string-match
-                          (org-notes--headline-regexp)
+                          (org-notes--heading-regexp)
                           heading)
                          (or (match-string 3 heading)
                              "UNKNOWN")))
