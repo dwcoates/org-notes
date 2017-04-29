@@ -94,6 +94,36 @@ Group 4: tags"
   "Wrapper for sorting `org-notes-locations' using SOURCE-TAGS."
   (org-notes--sort-locations source-tags))
 
+(defvar org-notes--helm-window-split nil)
+
+(defun org-notes--helm-display-note (candidate)
+  "Find file CANDIDATE or kill it's buffer if it is visible.
+Never kill `helm-current-buffer'.
+Never kill buffer modified.
+This is called normally on third hit of \
+\\<helm-map>\\[helm-execute-persistent-action]
+in `helm-find-files-persistent-action'."
+
+  (let* ((buf-name (with-temp-buffer
+                     (org-with-wide-buffer
+                      (org-id-goto candidate)
+                      (org-get-heading t t))))
+         (buf      (get-buffer-create buf-name))
+         (win      (split-window
+                    (get-buffer-window helm-buffer) nil 'above))
+         (helm--reading-passwd-or-string t))
+    (when win
+      (setq org-notes--helm-window-split t)
+      (switch-to-buffer buf)
+      (let ((org-inhibit-startup t)) (org-mode))
+      (insert (with-temp-buffer
+                (org-with-wide-buffer
+                 (org-id-goto candidate)
+                 (buffer-substring
+                  (save-excursion (org-back-to-heading) (point))
+                  (save-excursion (org-end-of-subtree) (point)))))))
+    ))
+
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
   (let ((note-locations (org-notes--helm-lookup-note
@@ -101,10 +131,17 @@ Group 4: tags"
                            (org-get-local-tags)))))
     (helm :sources (helm-build-sync-source "Org Notes"
                      :candidates note-locations
-                    :candidate-number-limit 2500
-                    :multiline t
-                    :volatile t)
-         :buffer "*Org Notes Headings*")))
+                     :candidate-number-limit 2500
+                     :persistent-action 'org-notes--helm-display-note
+                     :multiline t
+                     :volatile t)
+         :buffer "*Org Notes Headings*")
+    ;; sloppy fix to unfortunate behavior of persistent action after
+    ;; unexpected quit
+    (widen)
+    (scroll-right (window-width))))
+
+(define-key helm-map (kbd "C-z") 'helm-execute-persistent-action)
 
 (defun org-notes-helm-goto ()
   "Navigate to the location specified by an `helm-org-notes-find' call."
@@ -188,7 +225,6 @@ NOTE is non-nil."
 
 (defun org-notes--store-note-advice (funct)
   "Advice necessary to grab onto `org-store-log-note' w/ FUNCT."
-  (message "hellllllllo")
   (let ((org-log-into-drawer-temp org-log-into-drawer))
     (setq-default org-log-into-drawer org-notes-drawer-name)
     (funcall funct)
