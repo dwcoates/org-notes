@@ -35,3 +35,9 @@ other's respective LINKS drawer.
 `helm-execute-persistent-action`, bound to `C-z` by default, can be used to
 display the currently selected org-note when in `org-notes--helm-find`, which
 is used by `org-notes-goto` and `org-notes-helm-link-notes`.
+
+These functions can be very useful for browsing notes; use `org-notes-goto` to
+browse with `helm-execute-persistent-action`, jump to an interesting note, and
+use `org-notes-jump-to-note` to jump back to location from which
+`org-notes-goto` was last called.
+
