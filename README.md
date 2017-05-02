@@ -31,3 +31,7 @@ together. Should be called while point is in the context of an org heading, at
 which point it will prompt you to select a note from `org-notes-locations`. The
 selected note and heading context of point will each have links added to each
 other's respective LINKS drawer.
+
+`helm-execute-persistent-action`, bound to `C-z` by default, can be used to
+display the currently selected org-note when in `org-notes--helm-find`, which
+is used by `org-notes-goto` and `org-notes-helm-link-notes`.

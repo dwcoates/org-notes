@@ -32,6 +32,10 @@
 ;; selected note and heading context of point will each have links added to each
 ;; other's respective LINKS drawer.
 ;;
+;; `helm-execute-persistent-action', bound to `C-z' by default, can be used to
+;; display the currently selected org-note when in org-notes--helm-find, which
+;; is used by `org-notes-goto' and `org-notes-helm-link-notes'
+;;
 ;;; Code:
 
 (require 'org)
@@ -96,52 +100,103 @@ Group 4: tags"
 
 (defvar org-notes--helm-window-split nil)
 
-(defun org-notes--helm-display-note (candidate)
-  "Find file CANDIDATE or kill it's buffer if it is visible.
-Never kill `helm-current-buffer'.
-Never kill buffer modified.
-This is called normally on third hit of \
-\\<helm-map>\\[helm-execute-persistent-action]
-in `helm-find-files-persistent-action'."
 
-  (let* ((buf-name (with-temp-buffer
-                     (org-with-wide-buffer
-                      (org-id-goto candidate)
-                      (org-get-heading t t))))
-         (buf      (get-buffer-create buf-name))
-         (win      (split-window
-                    (get-buffer-window helm-buffer) nil 'above))
-         (helm--reading-passwd-or-string t))
-    (when win
-      (setq org-notes--helm-window-split t)
-      (switch-to-buffer buf)
-      (let ((org-inhibit-startup t)) (org-mode))
-      (insert (with-temp-buffer
-                (org-with-wide-buffer
-                 (org-id-goto candidate)
-                 (buffer-substring
-                  (save-excursion (org-back-to-heading) (point))
-                  (save-excursion (org-end-of-subtree) (point)))))))
-    ))
+(defun org-notes--helm-display-note (candidate)
+  "Display the note corresponding to CANDIDATE.
+This will display the note corresponding to candidate in a
+separate window, split from `helm-buffer'.  Used by
+`helm-execute-persistent-action' in `org-notes--helm-find'."
+  (save-excursion
+    (let* ((buf-name (substring-no-properties
+                      (let ((location (org-id-find candidate 'marker)))
+                        (unless location
+                          (error "Cannot find the candidate's location"))
+                        (with-current-buffer (marker-buffer location)
+                          (org-with-wide-buffer
+                           (goto-char location)
+                           (org-get-heading t t))))))
+          (buf      (get-buffer-create buf-name))
+          (win      (get-buffer-window buf))
+          (helm--reading-passwd-or-string t))
+      (cond ((and buf win (eq buf (get-buffer helm-current-buffer)))
+             (user-error
+              "Can't kill `helm-current-buffer' without quitting session"))
+            ((and buf win)
+             ;; remove window split, and remove the preview buffer
+             (delete-window (get-buffer-window buf))
+             (unless (kill-buffer buf)
+               (error "Buffer not killed?")))
+            (t
+             ;; create preview buffer in the window split
+             (switch-to-buffer buf)
+             (delete-region (point-min) (point-max))
+             (let ((org-inhibit-startup t)) (org-mode))
+             (insert
+              (let ((location (org-id-find candidate 'marker)))
+                (with-current-buffer (marker-buffer location)
+                  (org-with-wide-buffer
+                   (org-with-limited-levels
+                    (goto-char location)
+                    (buffer-substring
+                     (save-excursion (org-back-to-heading) (point))
+                     (save-excursion (org-end-of-subtree) (point))))))))
+             (beginning-of-buffer)
+             ;; display latex fragments as images
+             (org-notes-turn-display-latex-fragments)
+             ))
+     )))
+
+(defun org-notes-turn-display-latex-fragments ()
+  "Display latex fragments in the current buffer.
+Intended for use in the preview buffer, because
+`org-preview-latex-fragment' is a dumb toggle function that doesn't
+play well with `org-notes'."
+  (when (display-graphic-p)
+    (catch 'exit
+      (save-excursion
+        (let ((beg (point-min)) (end (point-max)))
+          (let ((file (buffer-file-name (buffer-base-buffer))))
+            (org-format-latex
+             (concat org-preview-latex-image-directory "org-ltximg")
+             beg
+             end
+             (if (or (not file) (file-remote-p file))
+                 temporary-file-directory
+               default-directory)
+             'overlays
+             nil
+             'forbuffer
+             org-preview-latex-default-process)))))))
+
+(defun org-notes--helm-split-window-for-display ()
+  "`helm-execute-presistent-action' with split helm window."
+  (interactive)
+  (helm-execute-persistent-action 'persistent-action t))
+
+;; Reassign all bindings in `helm-map' for `helm-execute-persistent-action'
+;; to `org-notes--helm-split-window-for-display'.
+(defvar org-notes-keymap (make-composed-keymap
+                              (let ((map (make-keymap)))
+                                (mapc (lambda (key)
+                                        (define-key map key 'org-notes--helm-split-window-for-display))
+                                      (where-is-internal 'helm-execute-persistent-action helm-map))
+                                map)
+                              helm-map))
 
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
   (let ((note-locations (org-notes--helm-lookup-note
                          (when (eq major-mode 'org-mode)
-                           (org-get-local-tags)))))
+                           (org-get-local-tags))))
+        (helm-onewindow-p t))
     (helm :sources (helm-build-sync-source "Org Notes"
                      :candidates note-locations
                      :candidate-number-limit 2500
                      :persistent-action 'org-notes--helm-display-note
                      :multiline t
-                     :volatile t)
-         :buffer "*Org Notes Headings*")
-    ;; sloppy fix to unfortunate behavior of persistent action after
-    ;; unexpected quit
-    (widen)
-    (scroll-right (window-width))))
-
-(define-key helm-map (kbd "C-z") 'helm-execute-persistent-action)
+                     :volatile t
+                     :keymap org-notes-keymap)
+         :buffer "*Org Notes Headings*")))
 
 (defun org-notes-helm-goto ()
   "Navigate to the location specified by an `helm-org-notes-find' call."
@@ -243,7 +298,8 @@ link between two org headings."
   (unless (eq major-mode 'org-mode)
     (error "Cannot link notes when not in an org context"))
   (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
-         (dest-id (org-notes--helm-find))
+         (dest-id (let ((helm-onewindow-p t))
+                    (or (org-notes--helm-find) (keyboard-quit))))
          (dest-heading (let ((case-fold-search)
                              (heading (car (rassoc dest-id org-notes-locations))))
                          (string-match
