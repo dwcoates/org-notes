@@ -44,6 +44,12 @@
 (defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
 (defvar org-notes-locations nil)
 (defvar org-notes-drawer-name "LINKS")
+(defvar org-notes--jump-to-note-register (cons nil nil)
+  "Possible locations for `org-notes-jump-to-note'.
+These are stored as a cons cell in, the car of which is the last
+location from which `org-notes-helm-goto' was called, and the cdr
+the location of last note *linked to* by
+`org-notes-helm-link-notes'." )
 
 (defun org-notes--heading-regexp ()
   "Regular expression for parsing headings in `org-notes-locations'.
@@ -201,8 +207,38 @@ play well with `org-notes'."
 (defun org-notes-helm-goto ()
   "Navigate to the location specified by an `helm-org-notes-find' call."
   (interactive)
+  (setcar org-notes--jump-to-note-register
+          (set-marker (make-marker) (point)))
   (org-id-goto (org-notes--helm-find))
+  (setcdr org-notes--jump-to-note-register
+          (set-marker (make-marker) (point)))
   (outline-show-subtree))
+
+(defun org-notes--pop-register (reg)
+  "Not much of a pop for REG."
+  (let ((temp (car reg)))
+    (setcar reg (cdr reg))
+    (setcdr reg temp))
+  reg)
+
+(defun org-notes-jump-to-note (arg)
+  "Navigate to the location specified by ARG.
+
+By default, jump to location from which `org-notes-helm-goto' was
+called.  With prefix arg `\\[universal-argument]
+\\[universal-argument]', this function will jump to last note
+linked to by `org-notes-helm-link-notes'."
+  (interactive "P")
+  (if org-notes--jump-to-note-register
+      (let ((location (car org-notes--jump-to-note-register)))
+        (buf (marker-buffer location))
+        (switch-to-buffer buf)
+        (goto-char (marker-position location))
+        (org-notes--pop-register org-notes--jump-to-note-register)
+        (recenter))
+    (message
+     (concat "org-notes does not have any interesting locations stored.  "
+             "See docs for org-notes-jump-to-note"))))
 
 (defun org-notes--sort-locations (&optional source-tags)
   "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
