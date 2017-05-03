@@ -46,6 +46,9 @@
 (require 'org)
 (require 'helm)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Variables and Bindings
+
 (defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
 (defvar org-notes-locations nil)
 (defvar org-notes-drawer-name "LINKS")
@@ -74,7 +77,7 @@ Group 1: (accepted) task
 Group 2: priority cookie
 Group 3: heading title
 Group 4: tags"
-    (concat
+  (concat
      "^"                                ; beginning of line
      (concat "\\(" (mapconcat 'identity org-notes-accepted-tasks "\\|") "\\)?") ; match accepted tasks
      "\\(?: +\\(\\[#.\\]\\)\\)?"         ; match priority cookies, which may or may not exist
@@ -82,6 +85,9 @@ Group 4: tags"
      "\\(?: +\\(:[[:alnum:]_@#%:]+:\\)\\)?" ; match tags, which may or may not exist
      "[ 	]*\\'"                               ; match rest of heading
      ))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Org Note Location Tracking
 
 (defun org-notes-org-id-locations-load-advice (funct)
   "`org-id-locations-load' advice updating `org-notes-locations' w/ FUNCT and ARGS."
@@ -116,9 +122,85 @@ Group 4: tags"
                       org-notes-accepted-tasks)
           (cons (org-get-heading) id))))))
 
+;;;;;;;;;;;;;;;;;;;;;;
+;; Core Helm Interface
+
 (defun org-notes--helm-lookup-note (source-tags)
   "Wrapper for sorting `org-notes-locations' using SOURCE-TAGS."
   (org-notes--sort-locations source-tags))
+
+(defvar org-notes-keymap
+  (make-composed-keymap
+   (let ((map (make-keymap)))
+     (mapc (lambda (key)
+             (define-key map key 'org-notes--helm-split-window-for-display))
+           (where-is-internal 'helm-execute-persistent-action helm-map))
+     map)
+   helm-map)
+  "Reassigns all bindings in `helm-map' for `helm-execute-persistent-action' to `org-notes--helm-split-window-for-display'.")
+
+(defun org-notes--helm-find ()
+  "Return the org-id for a given note in the `org-notes-locations' alist."
+  (let ((note-locations (org-notes--helm-lookup-note
+                         (when (eq major-mode 'org-mode)
+                           (org-get-local-tags))))
+        (resize helm-autoresize-mode)
+        (helm-autoresize-min-height (floor (/ (frame-height) 2.0)))
+        (helm-autoresize-max-height (floor (/ (frame-height) 2.0)))
+        (helm-resize-on-pa-text-height (floor (/ (frame-height) 2.0)))
+        (helm-truncate-lines t))
+    (helm :sources (helm-build-sync-source "Org Notes"
+                     :candidates note-locations
+                     :candidate-number-limit 2500
+                     :persistent-action 'org-notes--helm-display-note
+                     :multiline t
+                     :volatile t
+                     :keymap org-notes-keymap)
+          :buffer "*Org Notes Headings*")))
+
+(defun org-notes--sort-locations (&optional source-tags)
+  "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
+Sort priority for a given heading in `org-notes-locations' is
+given by the number of tags shared between it and
+SOURCE-TAGS (i.e., generally the tags for the heading of the
+subtree in which point is positioned).
+
+Secondary priority is given by the string magnitudes of the
+heading titles (headings stripped of tasks, tags, priorities,
+etc).
+
+Therefore, if SOURCE-TAGS is nil, this sort will ignore tags
+during the sort, and only sort by the magnitude of the heading
+titles in `org-notes-locations'."
+  (cl-sort
+   (copy-seq org-notes-locations)
+   (lambda (th1 th2)
+     "Predicate for sort."
+     (let ((tag-count-1 (car th1))
+           (tag-count-2 (car th2))
+           (title-1     (cdr th1))
+           (title-2     (cdr th2)))
+       (cond ((> tag-count-1 tag-count-2))
+             ((= tag-count-1 tag-count-2)
+              (string-lessp title-1 title-2)))))
+   :key (lambda (hl-id)
+          "Keys on which the predicate is applied."
+          (let* ((heading (car hl-id))
+                 (heading-title
+                  (progn (string-match
+                          (org-notes--heading-regexp) heading)
+                         (or (match-string 3 heading) "")))
+                 (tag-count
+                  (length (remove nil
+                                  (mapcar
+                                   (lambda (tag) (member tag source-tags))
+                                   (split-string
+                                    (or (match-string 4 heading) "")
+                                    ":" t))))))
+            (cons tag-count heading-title)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Helm Persistent Action
 
 (defun org-notes--helm-display-note (candidate)
   "Display the note corresponding to CANDIDATE.
@@ -161,16 +243,116 @@ separate window, split from `helm-buffer'.  Used by
                      (save-excursion (org-end-of-subtree) (point))))))))
              (beginning-of-buffer)
              ;; display latex fragments as images
-             (org-notes-turn-on-display-latex-fragments)
+             (org-notes--turn-on-display-latex-fragments)
              ;; turn on pretty entities
              (setq-local org-pretty-entities t)
              (org-restart-font-lock)
              ;; resize helm buffer
              (run-hooks helm-autoresize-mode-hook)
-             ))))
-  )
+             )))))
 
-(defun org-notes-turn-on-display-latex-fragments ()
+(defun org-notes--helm-split-window-for-display ()
+  "`helm-execute-presistent-action' with split helm window."
+  (interactive)
+  (helm-execute-persistent-action 'persistent-action t))
+
+;;;;;;;;;;;;;;;;;
+;; User Functions
+
+;; `org-notes-helm-goto'
+(defun org-notes-helm-goto ()
+  "Navigate to the location specified by an `helm-org-notes-find' call."
+  (interactive)
+  (let ((entry-point (set-marker (make-marker) (point)))
+        (location (org-notes--helm-find)))
+    (when location
+      (if entry-point
+          (setcar org-notes--jump-to-note-register entry-point)
+        (warn "Warning: Can't determine current point for org-notes jump register.
+Register unchanged, and `org-notes-jump-to-note' will not be updated."))
+      (org-id-goto location)
+      (when entry-point
+           (setcdr org-notes--jump-to-note-register
+                   (set-marker (make-marker) (point))))
+      (outline-show-subtree)
+      (recenter)
+      (when org-notes-show-latex-on-jump
+        (org-notes--turn-on-display-latex-fragments)))))
+
+;; `org-notes-helm-link-notes'
+(defun org-notes-helm-link-notes (arg)
+  "Links selected note in a log drawer for current heading with prefix arg ARG.
+Also links the id of current heading in a link drawer under
+heading corresponding to selected note.  Results in a two-way
+link between two org headings.
+
+Non-nil ARG will result in a prompt for a note to be added with
+the linking."
+  (interactive "P")
+  (unless (eq major-mode 'org-mode)
+    (error "Cannot link notes when not in an org context"))
+  (catch
+      (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
+          (dest-id (let ((helm-onewindow-p t))
+                     (or (org-notes--helm-find) (throw 'exit nil))))
+          (dest-heading (let ((case-fold-search)
+                              (heading (car (rassoc dest-id org-notes-locations))))
+                          (string-match
+                           (org-notes--heading-regexp)
+                           heading)
+                          (or (match-string 3 heading)
+                              "UNKNOWN")))
+          (forward-link (org-make-link-string
+                         (concat "id:" dest-id)
+                         dest-heading))
+          (back-link (org-make-link-string
+                      (concat "id:" (org-id-get-create))
+                      loc-heading))
+          (note (or arg
+                    org-notes-always-add-note
+                    (when org-notes-prompt-for-note
+                      (y-or-n-p "Add note for link? ")))))
+        ;; Insert forward link in source note
+        (org-notes--add-link-to-drawer forward-link ">" note)
+        ;; Insert backward link in linked note
+        (let ((dest-loc (org-id-find dest-id 'marker)))
+          (unless dest-loc
+            (error "Cannot find the candidate's location"))
+          (with-current-buffer (marker-buffer dest-loc)
+            (org-with-wide-buffer
+             (goto-char dest-loc)
+             (org-notes--add-link-to-drawer back-link "<"))))
+        (message "Linked '%s' and '%s'" loc-heading dest-heading))))
+
+;; `org-notes-jump-to-note'
+(defun org-notes-jump-to-note (arg)
+  "Navigate to the location specified by ARG.
+
+By default, jump to location from which `org-notes-helm-goto' was
+called.  With prefix arg `\\[universal-argument]
+\\[universal-argument]', this function will jump to last note
+linked to by `org-notes-helm-link-notes'."
+  (interactive "P")
+  (if org-notes--jump-to-note-register
+      (let* ((location (car org-notes--jump-to-note-register))
+             (buf (marker-buffer location))
+             (entry-point (set-marker (make-marker) (point))))
+        (switch-to-buffer buf)
+        (goto-char (marker-position location))
+        (recenter)
+        (org-notes--pop-register org-notes--jump-to-note-register)
+        ;; Make entry location the point to jump to in next invocation
+        ;; (setcar org-notes--jump-to-note-register entry-point)
+        (when org-notes-show-latex-on-jump
+          (org-notes--turn-on-display-latex-fragments)))
+    (message
+     (concat "org-notes does not have any interesting locations stored.  "
+             "See docs for org-notes-jump-to-note"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Low-level helper functions
+
+(defun org-notes--turn-on-display-latex-fragments ()
   "Display latex fragments in the current buffer.
 Intended for use in the preview buffer, because
 `org-preview-latex-fragment' is a dumb toggle function that doesn't
@@ -193,130 +375,12 @@ play well with `org-notes'."
              'forbuffer
              org-preview-latex-default-process)))))))
 
-(defun org-notes--helm-split-window-for-display ()
-  "`helm-execute-presistent-action' with split helm window."
-  (interactive)
-  (helm-execute-persistent-action 'persistent-action t))
-
-(defvar org-notes-keymap
-  (make-composed-keymap
-   (let ((map (make-keymap)))
-     (mapc (lambda (key)
-             (define-key map key 'org-notes--helm-split-window-for-display))
-           (where-is-internal 'helm-execute-persistent-action helm-map))
-     map)
-   helm-map)
-  "Reassigns all bindings in `helm-map' for `helm-execute-persistent-action' to `org-notes--helm-split-window-for-display'.")
-
-(defun org-notes--helm-find ()
-  "Return the org-id for a given note in the `org-notes-locations' alist."
-  (let ((note-locations (org-notes--helm-lookup-note
-                         (when (eq major-mode 'org-mode)
-                           (org-get-local-tags))))
-        (resize helm-autoresize-mode)
-        (helm-autoresize-min-height (floor (/ (frame-height) 2.0)))
-        (helm-autoresize-max-height (floor (/ (frame-height) 2.0)))
-        (helm-resize-on-pa-text-height (floor (/ (frame-height) 2.0)))
-        (helm-truncate-lines t))
-    (helm :sources (helm-build-sync-source "Org Notes"
-                     :candidates note-locations
-                     :candidate-number-limit 2500
-                     :persistent-action 'org-notes--helm-display-note
-                     :multiline t
-                     :volatile t
-                     :keymap org-notes-keymap)
-          :buffer "*Org Notes Headings*")))
-
-(defun org-notes-helm-goto ()
-  "Navigate to the location specified by an `helm-org-notes-find' call."
-  (interactive)
-  (let ((entry-point (set-marker (make-marker) (point)))
-        (location (org-notes--helm-find)))
-    (when location
-      (if entry-point
-          (setcar org-notes--jump-to-note-register entry-point)
-        (warn "Warning: Can't determine current point for org-notes jump register.
-Register unchanged, and `org-notes-jump-to-note' will not be updated."))
-      (org-id-goto location)
-      (when entry-point
-           (setcdr org-notes--jump-to-note-register
-                   (set-marker (make-marker) (point))))
-      (outline-show-subtree)
-      (recenter)
-      (when org-notes-show-latex-on-jump
-        (org-notes-turn-on-display-latex-fragments)))))
-
 (defun org-notes--pop-register (reg)
   "Not much of a pop for REG."
   (let ((temp (car reg)))
     (setcar reg (cdr reg))
     (setcdr reg temp))
   reg)
-
-(defun org-notes-jump-to-note (arg)
-  "Navigate to the location specified by ARG.
-
-By default, jump to location from which `org-notes-helm-goto' was
-called.  With prefix arg `\\[universal-argument]
-\\[universal-argument]', this function will jump to last note
-linked to by `org-notes-helm-link-notes'."
-  (interactive "P")
-  (if org-notes--jump-to-note-register
-      (let* ((location (car org-notes--jump-to-note-register))
-             (buf (marker-buffer location))
-             (entry-point (set-marker (make-marker) (point))))
-        (switch-to-buffer buf)
-        (goto-char (marker-position location))
-        (recenter)
-        (org-notes--pop-register org-notes--jump-to-note-register)
-        ;; Make entry location the point to jump to in next invocation
-        ;; (setcar org-notes--jump-to-note-register entry-point)
-        (when org-notes-show-latex-on-jump
-          (org-notes-turn-on-display-latex-fragments)))
-    (message
-     (concat "org-notes does not have any interesting locations stored.  "
-             "See docs for org-notes-jump-to-note"))))
-
-(defun org-notes--sort-locations (&optional source-tags)
-  "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
-Sort priority for a given heading in `org-notes-locations' is
-given by the number of tags shared between it and
-SOURCE-TAGS (i.e., generally the tags for the heading of the
-subtree in which point is positioned).
-
-Secondary priority is given by the string magnitudes of the
-heading titles (headings stripped of tasks, tags, priorities,
-etc).
-
-Therefore, if SOURCE-TAGS is nil, this sort will ignore tags
-during the sort, and only sort by the magnitude of the heading
-titles in `org-notes-locations'."
-  (cl-sort
-   (copy-seq org-notes-locations)
-   (lambda (th1 th2)
-     "Predicate for sort."
-     (let ((tag-count-1 (car th1))
-           (tag-count-2 (car th2))
-           (title-1     (cdr th1))
-           (title-2     (cdr th2)))
-       (cond ((> tag-count-1 tag-count-2))
-             ((= tag-count-1 tag-count-2)
-              (string-lessp title-1 title-2)))))
-   :key (lambda (hl-id)
-          "Keys on which the predicate is applied."
-          (let* ((heading (car hl-id))
-                 (heading-title
-                  (progn (string-match
-                          (org-notes--heading-regexp) heading)
-                         (or (match-string 3 heading) "")))
-                 (tag-count
-                  (length (remove nil
-                                  (mapcar
-                                   (lambda (tag) (member tag source-tags))
-                                   (split-string
-                                    (or (match-string 4 heading) "")
-                                    ":" t))))))
-            (cons tag-count heading-title)))))
 
 (defun org-notes--insert-link (link entry-delimiter)
   "Insert LINK at point using `org-log-into-drawer', delimited by ENTRY-DELIMITER."
@@ -361,49 +425,8 @@ NOTE is non-nil."
                    'org-notes--store-note-advice)
     (setq-default org-log-into-drawer org-log-into-drawer-temp)))
 
-(defun org-notes-helm-link-notes (arg)
-  "Links selected note in a log drawer for current heading with prefix arg ARG.
-Also links the id of current heading in a link drawer under
-heading corresponding to selected note.  Results in a two-way
-link between two org headings.
-
-Non-nil ARG will result in a prompt for a note to be added with
-the linking."
-  (interactive "P")
-  (unless (eq major-mode 'org-mode)
-    (error "Cannot link notes when not in an org context"))
-  (catch
-      (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
-          (dest-id (let ((helm-onewindow-p t))
-                     (or (org-notes--helm-find) (throw 'exit nil))))
-          (dest-heading (let ((case-fold-search)
-                              (heading (car (rassoc dest-id org-notes-locations))))
-                          (string-match
-                           (org-notes--heading-regexp)
-                           heading)
-                          (or (match-string 3 heading)
-                              "UNKNOWN")))
-          (forward-link (org-make-link-string
-                         (concat "id:" dest-id)
-                         dest-heading))
-          (back-link (org-make-link-string
-                      (concat "id:" (org-id-get-create))
-                      loc-heading))
-          (note (or arg
-                    org-notes-always-add-note
-                    (when org-notes-prompt-for-note
-                      (y-or-n-p "Add note for link? ")))))
-        ;; Insert forward link in source note
-        (org-notes--add-link-to-drawer forward-link ">" note)
-        ;; Insert backward link in linked note
-        (let ((dest-loc (org-id-find dest-id 'marker)))
-          (unless dest-loc
-            (error "Cannot find the candidate's location"))
-          (with-current-buffer (marker-buffer dest-loc)
-            (org-with-wide-buffer
-             (goto-char dest-loc)
-             (org-notes--add-link-to-drawer back-link "<"))))
-        (message "Linked '%s' and '%s'" loc-heading dest-heading))))
+;;;;;;;
+;; END
 
 (provide 'org-notes)
 
