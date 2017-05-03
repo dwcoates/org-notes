@@ -49,6 +49,11 @@
 (defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
 (defvar org-notes-locations nil)
 (defvar org-notes-drawer-name "LINKS")
+(defvar org-notes-always-add-note nil
+  "If non-nil, always insert a note with `org-notes-helm-link-notes' link.")
+(defvar org-notes-prompt-for-note t
+  "If non-nil, ask to add a note inserted with `org-notes-helm-link-notes' link.
+Has no effect if `org-notes-always-add-note' is non-nil.")
 (defvar org-notes--jump-to-note-register (cons nil nil)
   "Possible locations for `org-notes-jump-to-note'.
 These are stored as a cons cell in, the car of which is the last
@@ -154,6 +159,10 @@ separate window, split from `helm-buffer'.  Used by
              (beginning-of-buffer)
              ;; display latex fragments as images
              (org-notes-turn-on-display-latex-fragments)
+             ;; turn on pretty entities
+             (setq-local org-pretty-entities t)
+             (org-restart-font-lock)
+             ;; resize helm buffer
              (run-hooks helm-autoresize-mode-hook)
              ))
      )))
@@ -347,12 +356,15 @@ NOTE is non-nil."
                    'org-notes--store-note-advice)
     (setq-default org-log-into-drawer org-log-into-drawer-temp)))
 
-(defun org-notes-helm-link-notes ()
-  "Links selected note in a log drawer for current heading.
+(defun org-notes-helm-link-notes (arg)
+  "Links selected note in a log drawer for current heading with prefix arg ARG.
 Also links the id of current heading in a link drawer under
 heading corresponding to selected note.  Results in a two-way
-link between two org headings."
-  (interactive)
+link between two org headings.
+
+Non-nil ARG will result in a prompt for a note to be added with
+the linking."
+  (interactive "P")
   (unless (eq major-mode 'org-mode)
     (error "Cannot link notes when not in an org context"))
   (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
@@ -373,7 +385,11 @@ link between two org headings."
                      loc-heading)))
     (when dest-id                       ; do nothing if org-notes--helm-find is quit unexpectedly
       ;; Insert forward link in source note
-      (org-notes--add-link-to-drawer forward-link ">" t)
+      (let ((note (or arg
+                      org-notes-always-add-note
+                      (when org-notes-prompt-for-note
+                        (y-or-n-p "Add note for link? ")))))
+        (org-notes--add-link-to-drawer forward-link ">" note))
       ;; Insert backward link in linked note
       (save-excursion
         (with-temp-buffer
