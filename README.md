@@ -56,7 +56,9 @@ applies. Only org headings with one of these tasks will be tracked by
 org-notes.
 
 The `org-notes--helm-find` function can be used to return the id for a given
-note.  This is only useful as an API function.
+note.  This is only useful as an API function. The displayed org-notes are
+sorted primarily by tag correspondance (relative to the the current headline's
+tags, if any), and secondarily by alphabetical order of headline titles.
 
 org-notes will automatically display latex fragments and enable pretty
 symbols when previewing. It also provides several variables for controlling

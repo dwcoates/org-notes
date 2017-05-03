@@ -446,24 +446,24 @@ This function will add an accompanying org note to the link if
 NOTE is non-nil."
   (save-excursion
     (if note
-        (let ((org-log-note-headings
-               (append
-                (list (cons 'note "Linked on %T"))
-                (assq-delete-all
-                 'note (copy-seq org-log-note-headings)))))
-          (call-interactively 'org-add-note)
-          (setq org-notes--insert-link-callback
-                ;; will this closure work? I don't htink so
-                (apply-partially 'org-notes--insert-link
-                                 link entry-delimiter))
-          (advice-add 'org-store-log-note
-                      :around 'org-notes--store-note-advice))
+        (call-interactively 'org-add-note)
+        (setq org-notes--insert-link-callback
+              ;; will this closure work? I don't htink so
+              (apply-partially 'org-notes--insert-link
+                               link entry-delimiter))
+        (advice-add 'org-store-log-note
+                    :around 'org-notes--store-note-advice)
       (let ((org-log-into-drawer org-notes-drawer-name))
         (org-notes--insert-link link entry-delimiter)))))
 
 (defun org-notes--store-note-advice (funct)
   "Advice necessary to grab onto `org-store-log-note' w/ FUNCT."
-  (let ((org-log-into-drawer-temp org-log-into-drawer))
+  (let ((org-log-into-drawer-temp org-log-into-drawer)
+        (org-log-note-headings
+               (append
+                (list (cons 'note "Linked on %T"))
+                (assq-delete-all
+                 'note (copy-seq org-log-note-headings)))))
     (setq-default org-log-into-drawer org-notes-drawer-name)
     (funcall funct)
     (funcall org-notes--insert-link-callback)
