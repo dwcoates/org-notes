@@ -175,7 +175,7 @@ separate window, split from `helm-buffer'.  Used by
 Intended for use in the preview buffer, because
 `org-preview-latex-fragment' is a dumb toggle function that doesn't
 play well with `org-notes'."
-  (when (display-graphic-p)
+  (when (and (display-graphic-p) (equal major-mode 'org-mode))
     (catch 'exit
       (save-excursion
         (let ((beg (save-excursion (org-back-to-heading) (point)))
@@ -271,7 +271,8 @@ linked to by `org-notes-helm-link-notes'."
         (org-notes--pop-register org-notes--jump-to-note-register)
         ;; Make entry location the point to jump to in next invocation
         ;; (setcar org-notes--jump-to-note-register entry-point)
-        )
+        (when org-notes-show-latex-on-jump
+          (org-notes-turn-on-display-latex-fragments)))
     (message
      (concat "org-notes does not have any interesting locations stored.  "
              "See docs for org-notes-jump-to-note"))))
