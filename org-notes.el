@@ -62,7 +62,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Variables and Bindings
 
-(defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
+(defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE" "NEXT"))
 (defvar org-notes-locations nil)
 (defvar org-notes-drawer-name "LINKS")
 (defvar org-notes-always-add-note nil
@@ -107,11 +107,12 @@ Group 4: tags"
 (defun org-notes-org-id-locations-load-advice (funct)
   "`org-id-locations-load' advice updating `org-notes-locations' w/ FUNCT and ARGS."
   (funcall funct)
-  (setq org-notes-locations
-        (remove-if 'not
-         (mapcar
-          'org-notes-get-heading
-          (mapcar 'cadr (org-id-hash-to-alist org-id-locations)))))
+  (let ((inhibit-message t))
+    (setq org-notes-locations
+         (remove-if 'not
+                    (mapcar
+                     'org-notes-get-heading
+                     (mapcar 'cadr (org-id-hash-to-alist org-id-locations))))))
   (message "Updated org-id-locations. Contains %d notes."
            (length org-notes-locations)))
 
