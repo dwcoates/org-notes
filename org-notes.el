@@ -221,12 +221,12 @@ play well with `org-notes'."
         (location (org-notes--helm-find)))
     (when location
       (if entry-point
-          (setcar org-notes--jump-to-note-register entry-point)
+          (setcdr org-notes--jump-to-note-register entry-point)
         (warn "Warning: Can't determine current point for org-notes jump register.
 Register unchanged, and `org-notes-jump-to-note' will not be updated."))
       (org-id-goto location)
       (when entry-point
-           (setcdr org-notes--jump-to-note-register
+           (setcar org-notes--jump-to-note-register
                    (set-marker (make-marker) (point))))
       (outline-show-subtree))))
 
@@ -246,15 +246,20 @@ called.  With prefix arg `\\[universal-argument]
 linked to by `org-notes-helm-link-notes'."
   (interactive "P")
   (if org-notes--jump-to-note-register
-      (let ((location (car org-notes--jump-to-note-register)))
-        (buf (marker-buffer location))
+      (let* ((location (car org-notes--jump-to-note-register))
+             (buf (marker-buffer location))
+             (entry-point (set-marker (make-marker) (point))))
         (switch-to-buffer buf)
         (goto-char (marker-position location))
-        (org-notes--pop-register org-notes--jump-to-note-register)
-        (recenter))
+        (recenter)
+        ;; Make entry location the point to jump to in next invocation
+        (setcdr org-notes--jump-to-note-register entry-point)
+        (org-notes--pop-register org-notes--jump-to-note-register))
     (message
      (concat "org-notes does not have any interesting locations stored.  "
              "See docs for org-notes-jump-to-note"))))
+
+(global-set-key (kbd "C-c j") 'org-notes-jump-to-note)
 
 (defun org-notes--sort-locations (&optional source-tags)
   "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
