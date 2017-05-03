@@ -119,7 +119,7 @@ Group 4: tags"
 
 (defun org-notes-org-id-add-location-advice (funct &rest args)
   "`org-id-add-location' advice updating `org-notes-locations' w/ FUNCT and and id from ARGS."
-  (funcall funct args)
+  (apply funct args)
   (let ((head-id (org-notes-get-heading (car args))))
     (when head-id
       (add-to-list 'org-notes-locations head-id))))
@@ -136,6 +136,17 @@ Group 4: tags"
         (when (member (elt (org-heading-components) 2)
                       org-notes-accepted-tasks)
           (cons (org-get-heading) id))))))
+
+(when (require 'org-capture nil t)
+  (defun org-notes-org-capture-finalize (&optional arg)
+   "Hook for automatically adding an org-id for the captured note."
+   (interactive "P")
+   (unless (or org-note-abort
+               (not (member (elt (org-heading-components) 2)
+                            org-notes-accepted-tasks)))
+     (org-id-get-create))
+   (funcall 'org-capture-finalize arg))
+  (define-key org-capture-mode-map (kbd "C-c C-c") 'org-notes-org-capture-finalize))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core Helm Interface
