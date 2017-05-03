@@ -154,24 +154,30 @@ Group 4: tags"
    helm-map)
   "Reassigns all bindings in `helm-map' for `helm-execute-persistent-action' to `org-notes--helm-split-window-for-display'.")
 
+(defun org-notes--prettify-helm-buffer ()
+  "Wrapper for displaying latex images in helm-buffer."
+  (interactive)
+  (with-current-buffer helm-buffer
+    (org-notes--turn-on-display-latex-fragments t)))
+
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
   (let ((note-locations (org-notes--helm-lookup-note
                          (when (eq major-mode 'org-mode)
                            (org-get-local-tags))))
         (resize helm-autoresize-mode)
-        (helm-autoresize-min-height (floor (/ (frame-height) 2.0)))
-        (helm-autoresize-max-height (floor (/ (frame-height) 2.0)))
-        (helm-resize-on-pa-text-height (floor (/ (frame-height) 2.0)))
         (helm-truncate-lines t))
-    (helm :sources (helm-build-sync-source "Org Notes"
-                     :candidates note-locations
-                     :candidate-number-limit 2500
-                     :persistent-action 'org-notes--helm-display-note
-                     :multiline t
-                     :volatile t
-                     :keymap org-notes-keymap)
-          :buffer "*Org Notes Headings*")))
+    (add-hook 'helm-update-hook 'org-notes--prettify-helm-buffer)
+    (let ((ret (helm :sources (helm-build-sync-source "Org Notes"
+                                :candidates note-locations
+                                :candidate-number-limit 2500
+                                :persistent-action 'org-notes--helm-display-note
+                                :multiline t
+                                :volatile t
+                                :keymap org-notes-keymap)
+                     :buffer "*Org Notes Headings*")))
+      (remove-hook 'helm-update-hook 'org-notes--prettify-helm-buffer)
+      ret)))
 
 (defun org-notes--sort-locations (&optional source-tags)
   "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
@@ -257,8 +263,8 @@ separate window, split from `helm-buffer'.  Used by
                     (save-excursion (org-end-of-subtree) (point)))))))
              (beginning-of-buffer)
              ;; turn on pretty entities
-             ;; (setq-local org-pretty-entities t)
-             ;; (org-restart-font-lock)
+             (setq-local org-pretty-entities t)
+             (org-restart-font-lock)
              ;; display latex fragments as images
              (org-notes--turn-on-display-latex-fragments)
              ;; resize helm buffer
@@ -360,7 +366,8 @@ linked to by `org-notes-helm-link-notes'."
         (org-notes--pop-register org-notes--jump-to-note-register)
         ;; Make entry location the point to jump to in next invocation
         ;; (setcar org-notes--jump-to-note-register entry-point)
-        (when org-notes-show-latex-on-jump
+        (when (and org-notes-show-latex-on-jump
+                   (equal major-mode 'org-mode))
           (org-notes--turn-on-display-latex-fragments)))
     (message
      (concat "org-notes does not have any interesting locations stored.  "
@@ -369,18 +376,26 @@ linked to by `org-notes-helm-link-notes'."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Low-level helper functions
 
-(defun org-notes--turn-on-display-latex-fragments ()
-  "Display latex fragments in the current buffer.
+(defun org-notes--turn-on-display-latex-fragments (&optional whole-buffer)
+  "Display latex fragments in the current buffer, possibly over WHOLE-BUFFER.
+
 Intended for use in the preview buffer, because
 `org-preview-latex-fragment' is a dumb toggle function that doesn't
-play well with `org-notes'."
-  (when (and (display-graphic-p)
-             (equal major-mode 'org-mode))
+play well with `org-notes'.
+
+Non-nil WHOLE-BUFFER results in the latex fragments being
+displayed over the entire buffer, instead of only the current
+subtree."
+  (when (display-graphic-p)
     (org-with-wide-buffer
      (org-show-entry)
      (save-excursion
-       (let ((beg (save-excursion (org-back-to-heading) (point)))
-             (end (save-excursion (org-end-of-subtree)))
+       (let ((beg (if whole-buffer
+                      (point-min)
+                    (save-excursion (org-back-to-heading) (point))))
+             (end (if whole-buffer
+                      (point-max)
+                    (save-excursion (org-end-of-subtree))))
              (file (buffer-file-name
                     (buffer-base-buffer))))
          (org-format-latex
