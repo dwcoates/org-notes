@@ -1,4 +1,4 @@
-;;; org-notes.el --- A simply way to link, connect, and browse notes taken in org-mode.
+;;; org-notes.el --- A simple way to link, connect, and browse notes taken in org-mode
 ;;
 ;;; Author: Dodge W. Coates
 ;;
@@ -47,7 +47,7 @@
 (require 'helm)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Variables and Bindings
+;;; Variables and Bindings
 
 (defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
 (defvar org-notes-locations nil)
@@ -89,7 +89,7 @@ Group 4: tags"
      ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Org Note Location Tracking
+;;; Org Note Location Tracking
 
 (defun org-notes-org-id-locations-load-advice (funct)
   "`org-id-locations-load' advice updating `org-notes-locations' w/ FUNCT and ARGS."
@@ -125,7 +125,7 @@ Group 4: tags"
           (cons (org-get-heading) id))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;
-;; Core Helm Interface
+;;; Core Helm Interface
 
 (defun org-notes--helm-lookup-note (source-tags)
   "Wrapper for sorting `org-notes-locations' using SOURCE-TAGS."
@@ -201,8 +201,8 @@ titles in `org-notes-locations'."
                                     ":" t))))))
             (cons tag-count heading-title)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Helm Persistent Action
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Helm Persistent Action
 
 (defun org-notes--helm-display-note (candidate)
   "Display the note corresponding to CANDIDATE.
@@ -258,8 +258,8 @@ separate window, split from `helm-buffer'.  Used by
   (interactive)
   (helm-execute-persistent-action 'persistent-action t))
 
-;;;;;;;;;;;;;;;;;
-;; User Functions
+;;;;;;;;;;;;;;;;;;
+;;; User Functions
 
 ;; `org-notes-helm-goto'
 (defun org-notes-helm-goto ()
@@ -355,7 +355,7 @@ linked to by `org-notes-helm-link-notes'."
              "See docs for org-notes-jump-to-note"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Low-level helper functions
+;;; Low-level helper functions
 
 (defun org-notes--turn-on-display-latex-fragments ()
   "Display latex fragments in the current buffer.
@@ -431,7 +431,7 @@ NOTE is non-nil."
     (setq-default org-log-into-drawer org-log-into-drawer-temp)))
 
 ;;;;;;;
-;; END
+;;; END
 
 (provide 'org-notes)
 
