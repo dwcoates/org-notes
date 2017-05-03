@@ -448,13 +448,14 @@ This function will add an accompanying org note to the link if
 NOTE is non-nil."
   (save-excursion
     (if note
-        (call-interactively 'org-add-note)
-        (setq org-notes--insert-link-callback
-              ;; will this closure work? I don't htink so
-              (apply-partially 'org-notes--insert-link
-                               link entry-delimiter))
-        (advice-add 'org-store-log-note
-                    :around 'org-notes--store-note-advice)
+        (progn
+          (call-interactively 'org-add-note)
+          (setq org-notes--insert-link-callback
+                ;; will this closure work? I don't htink so
+                (apply-partially 'org-notes--insert-link
+                                 link entry-delimiter))
+          (advice-add 'org-store-log-note
+                      :around 'org-notes--store-note-advice))
       (let ((org-log-into-drawer org-notes-drawer-name))
         (org-notes--insert-link link entry-delimiter)))))
 
