@@ -58,6 +58,8 @@
 (defvar org-notes-prompt-for-note t
   "If non-nil, ask to add a note inserted with `org-notes-helm-link-notes' link.
 Has no effect if `org-notes-always-add-note' is non-nil.")
+(defvar org-notes-hide-other-headings-after-jump t
+  "Non-nil means fold headings other than target heading after using `org-notes-helm-goto'.")
 (defvar org-notes--jump-to-note-register (cons nil nil)
   "Possible locations for `org-notes-jump-to-note'.
 These are stored as a cons cell in, the car of which is the last
@@ -274,10 +276,13 @@ Register unchanged, and `org-notes-jump-to-note' will not be updated."))
       (when entry-point
            (setcdr org-notes--jump-to-note-register
                    (set-marker (make-marker) (point))))
+      (when org-notes-hide-other-headings-after-jump
+        (outline-hide-other))
       (outline-show-subtree)
       (recenter)
       (when org-notes-show-latex-on-jump
-        (org-notes--turn-on-display-latex-fragments)))))
+        (org-notes--turn-on-display-latex-fragments))
+      )))
 
 ;; `org-notes-helm-link-notes'
 (defun org-notes-helm-link-notes (arg)
@@ -361,7 +366,7 @@ play well with `org-notes'."
     (catch 'exit
       (save-excursion
         (let ((beg (save-excursion (org-back-to-heading) (point)))
-              (end (save-excursion (org-forward-heading-same-level 1) (point))))
+              (end (save-excursion (org-forward-heading-same-level 1 t) (point))))
           (let ((file (buffer-file-name (buffer-base-buffer))))
             (org-format-latex
              (concat org-preview-latex-image-directory "org-ltximg")
