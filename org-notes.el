@@ -51,6 +51,7 @@
 (defvar org-notes-drawer-name "LINKS")
 (defvar org-notes-always-add-note nil
   "If non-nil, always insert a note with `org-notes-helm-link-notes' link.")
+(defvar org-notes-show-latex-on-jump t)
 (defvar org-notes-prompt-for-note t
   "If non-nil, ask to add a note inserted with `org-notes-helm-link-notes' link.
 Has no effect if `org-notes-always-add-note' is non-nil.")
@@ -60,6 +61,12 @@ These are stored as a cons cell in, the car of which is the last
 location from which `org-notes-helm-goto' was called, and the cdr
 the location of last note *linked to* by
 `org-notes-helm-link-notes'." )
+
+(define-key org-mode-map (kbd "C-c l") 'org-notes-add-link-to-drawer)
+(define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
+(global-set-key (kbd "C-c j") 'org-notes-helm-goto)
+(define-key org-mode-map (kbd "C-c C-j") 'org-notes-jump-to-note)
+(global-set-key (kbd "C-c C-j") 'org-notes-jump-to-note)
 
 (defun org-notes--heading-regexp ()
   "Regular expression for parsing headings in `org-notes-locations'.
@@ -107,15 +114,11 @@ Group 4: tags"
         (goto-char (cdr addr))
         (when (member (elt (org-heading-components) 2)
                       org-notes-accepted-tasks)
-          (cons (org-get-heading) id))
-        ))))
+          (cons (org-get-heading) id))))))
 
 (defun org-notes--helm-lookup-note (source-tags)
   "Wrapper for sorting `org-notes-locations' using SOURCE-TAGS."
   (org-notes--sort-locations source-tags))
-
-(defvar org-notes--helm-window-split nil)
-
 
 (defun org-notes--helm-display-note (candidate)
   "Display the note corresponding to CANDIDATE.
@@ -164,8 +167,8 @@ separate window, split from `helm-buffer'.  Used by
              (org-restart-font-lock)
              ;; resize helm buffer
              (run-hooks helm-autoresize-mode-hook)
-             ))
-     )))
+             ))))
+  )
 
 (defun org-notes-turn-on-display-latex-fragments ()
   "Display latex fragments in the current buffer.
@@ -175,7 +178,8 @@ play well with `org-notes'."
   (when (display-graphic-p)
     (catch 'exit
       (save-excursion
-        (let ((beg (point-min)) (end (point-max)))
+        (let ((beg (save-excursion (org-back-to-heading) (point)))
+              (end (save-excursion (org-forward-heading-same-level 1) (point))))
           (let ((file (buffer-file-name (buffer-base-buffer))))
             (org-format-latex
              (concat org-preview-latex-image-directory "org-ltximg")
@@ -237,7 +241,10 @@ Register unchanged, and `org-notes-jump-to-note' will not be updated."))
       (when entry-point
            (setcdr org-notes--jump-to-note-register
                    (set-marker (make-marker) (point))))
-      (outline-show-subtree))))
+      (outline-show-subtree)
+      (recenter)
+      (when org-notes-show-latex-on-jump
+        (org-notes-turn-on-display-latex-fragments)))))
 
 (defun org-notes--pop-register (reg)
   "Not much of a pop for REG."
@@ -268,8 +275,6 @@ linked to by `org-notes-helm-link-notes'."
     (message
      (concat "org-notes does not have any interesting locations stored.  "
              "See docs for org-notes-jump-to-note"))))
-
-(global-set-key (kbd "C-c j") 'org-notes-jump-to-note)
 
 (defun org-notes--sort-locations (&optional source-tags)
   "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
@@ -344,7 +349,6 @@ NOTE is non-nil."
       (let ((org-log-into-drawer org-notes-drawer-name))
         (org-notes--insert-link link entry-delimiter)))))
 
-
 (defun org-notes--store-note-advice (funct)
   "Advice necessary to grab onto `org-store-log-note' w/ FUNCT."
   (let ((org-log-into-drawer-temp org-log-into-drawer))
@@ -367,35 +371,38 @@ the linking."
   (interactive "P")
   (unless (eq major-mode 'org-mode)
     (error "Cannot link notes when not in an org context"))
-  (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
-         (dest-id (let ((helm-onewindow-p t))
-                    (or (org-notes--helm-find) (keyboard-quit))))
-         (dest-heading (let ((case-fold-search)
-                             (heading (car (rassoc dest-id org-notes-locations))))
-                         (string-match
-                          (org-notes--heading-regexp)
-                          heading)
-                         (or (match-string 3 heading)
-                             "UNKNOWN")))
-         (forward-link (org-make-link-string
-                        (concat "id:" dest-id)
-                        dest-heading))
-         (back-link (org-make-link-string
-                     (concat "id:" (org-id-get-create))
-                     loc-heading)))
-    (when dest-id                       ; do nothing if org-notes--helm-find is quit unexpectedly
-      ;; Insert forward link in source note
-      (let ((note (or arg
-                      org-notes-always-add-note
-                      (when org-notes-prompt-for-note
-                        (y-or-n-p "Add note for link? ")))))
-        (org-notes--add-link-to-drawer forward-link ">" note))
-      ;; Insert backward link in linked note
-      (save-excursion
-        (with-temp-buffer
-          (org-id-goto dest-id)
-          (org-notes--add-link-to-drawer back-link "<")))
-      (message "Linked '%s' and '%s'" loc-heading dest-heading))))
+  (catch
+      (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
+          (dest-id (let ((helm-onewindow-p t))
+                     (or (org-notes--helm-find) (throw 'exit nil))))
+          (dest-heading (let ((case-fold-search)
+                              (heading (car (rassoc dest-id org-notes-locations))))
+                          (string-match
+                           (org-notes--heading-regexp)
+                           heading)
+                          (or (match-string 3 heading)
+                              "UNKNOWN")))
+          (forward-link (org-make-link-string
+                         (concat "id:" dest-id)
+                         dest-heading))
+          (back-link (org-make-link-string
+                      (concat "id:" (org-id-get-create))
+                      loc-heading))
+          (note (or arg
+                    org-notes-always-add-note
+                    (when org-notes-prompt-for-note
+                      (y-or-n-p "Add note for link? ")))))
+        ;; Insert forward link in source note
+        (org-notes--add-link-to-drawer forward-link ">" note)
+        ;; Insert backward link in linked note
+        (let ((dest-loc (org-id-find dest-id 'marker)))
+          (unless dest-loc
+            (error "Cannot find the candidate's location"))
+          (with-current-buffer (marker-buffer dest-loc)
+            (org-with-wide-buffer
+             (goto-char dest-loc)
+             (org-notes--add-link-to-drawer back-link "<"))))
+        (message "Linked '%s' and '%s'" loc-heading dest-heading))))
 
 (provide 'org-notes)
 
