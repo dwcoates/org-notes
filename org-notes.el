@@ -68,6 +68,8 @@
 (defvar org-notes-always-add-note nil
   "If non-nil, always insert a note with `org-notes-helm-link-notes' link.")
 (defvar org-notes-show-latex-on-jump t)
+(defvar org-notes-display-latex-in-agenda t
+  "Non-nil prompts `org-agenda' to render latex fragments in `org-agenda-buffer'.")
 (defvar org-notes-prompt-for-note t
   "If non-nil, ask to add a note inserted with `org-notes-helm-link-notes' link.
 Has no effect if `org-notes-always-add-note' is non-nil.")
@@ -471,6 +473,17 @@ NOTE is non-nil."
     (advice-remove 'org-store-log-note
                    'org-notes--store-note-advice)
     (setq-default org-log-into-drawer org-log-into-drawer-temp)))
+
+(defun org-notes--display-latex-in-org-agenda ()
+  "Display latex fragment overlays in `org-agenda'.
+This function is only effective if `org-notes-display-latex-in-agenda'
+is non-nil.  It is added to the org-agenda-finalize-hook, which
+is run whenever the agenda is updated or initialized."
+  (when org-notes-display-latex-in-agenda
+    (with-current-buffer org-agenda-buffer
+    (org-notes--turn-on-display-latex-fragments t))))
+
+(add-hook 'org-agenda-finalize-hook 'org-notes--display-latex-in-org-agenda)
 
 ;;;;;;;
 ;;; END
