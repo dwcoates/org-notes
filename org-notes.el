@@ -221,12 +221,12 @@ play well with `org-notes'."
         (location (org-notes--helm-find)))
     (when location
       (if entry-point
-          (setcdr org-notes--jump-to-note-register entry-point)
+          (setcar org-notes--jump-to-note-register entry-point)
         (warn "Warning: Can't determine current point for org-notes jump register.
 Register unchanged, and `org-notes-jump-to-note' will not be updated."))
       (org-id-goto location)
       (when entry-point
-           (setcar org-notes--jump-to-note-register
+           (setcdr org-notes--jump-to-note-register
                    (set-marker (make-marker) (point))))
       (outline-show-subtree))))
 
@@ -252,9 +252,10 @@ linked to by `org-notes-helm-link-notes'."
         (switch-to-buffer buf)
         (goto-char (marker-position location))
         (recenter)
+        (org-notes--pop-register org-notes--jump-to-note-register)
         ;; Make entry location the point to jump to in next invocation
-        (setcdr org-notes--jump-to-note-register entry-point)
-        (org-notes--pop-register org-notes--jump-to-note-register))
+        ;; (setcar org-notes--jump-to-note-register entry-point)
+        )
     (message
      (concat "org-notes does not have any interesting locations stored.  "
              "See docs for org-notes-jump-to-note"))))
