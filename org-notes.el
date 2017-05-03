@@ -251,17 +251,16 @@ separate window, split from `helm-buffer'.  Used by
               (let ((location (org-id-find candidate 'marker)))
                 (with-current-buffer (marker-buffer location)
                   (org-with-wide-buffer
-                   (org-with-limited-levels
-                    (goto-char location)
-                    (buffer-substring
-                     (save-excursion (org-back-to-heading) (point))
-                     (save-excursion (org-end-of-subtree) (point))))))))
+                   (goto-char location)
+                   (buffer-substring
+                    (save-excursion (org-back-to-heading) (point))
+                    (save-excursion (org-end-of-subtree) (point)))))))
              (beginning-of-buffer)
+             ;; turn on pretty entities
+             ;; (setq-local org-pretty-entities t)
+             ;; (org-restart-font-lock)
              ;; display latex fragments as images
              (org-notes--turn-on-display-latex-fragments)
-             ;; turn on pretty entities
-             (setq-local org-pretty-entities t)
-             (org-restart-font-lock)
              ;; resize helm buffer
              (run-hooks helm-autoresize-mode-hook)
              )))))
@@ -376,22 +375,48 @@ Intended for use in the preview buffer, because
 `org-preview-latex-fragment' is a dumb toggle function that doesn't
 play well with `org-notes'."
   (when (and (display-graphic-p) (equal major-mode 'org-mode))
-    (catch 'exit
-      (save-excursion
-        (let ((beg (save-excursion (org-back-to-heading) (point)))
-              (end (save-excursion (org-forward-heading-same-level 1 t) (point))))
-          (let ((file (buffer-file-name (buffer-base-buffer))))
-            (org-format-latex
-             (concat org-preview-latex-image-directory "org-ltximg")
-             beg
-             end
-             (if (or (not file) (file-remote-p file))
-                 temporary-file-directory
-               default-directory)
-             'overlays
-             nil
-             'forbuffer
-             org-preview-latex-default-process)))))))
+    (save-excursion
+      (let ((beg (save-excursion (org-back-to-heading) (point)))
+            (end (save-excursion (org-forward-heading-same-level 1 t) (point)))
+            (file (buffer-file-name (buffer-base-buffer))))
+        (org-format-latex
+         (concat org-preview-latex-image-directory "org-ltximg")
+         beg
+         end
+         (if (or (not file) (file-remote-p file))
+             temporary-file-directory
+           default-directory)
+         'overlays
+         nil
+         'forbuffer
+         org-preview-latex-default-process)))))
+
+(defun org-notes--turn-on-display-latex-fragments ()
+  "Display latex fragments in the current buffer.
+Intended for use in the preview buffer, because
+`org-preview-latex-fragment' is a dumb toggle function that doesn't
+play well with `org-notes'."
+  (when (and (display-graphic-p)
+             (equal major-mode 'org-mode))
+    (org-with-wide-buffer
+     (org-show-entry)
+     (save-excursion
+       (let ((beg (save-excursion (org-back-to-heading) (point)))
+             (end (save-excursion (org-end-of-subtree) (point)))
+             (file (buffer-file-name
+                    (buffer-base-buffer))))
+         (org-format-latex
+          (concat org-preview-latex-image-directory "org-ltximg")
+          beg
+          end
+          (if (or (not file)
+                  (file-remote-p file))
+              temporary-file-directory
+            default-directory)
+          'overlays
+          nil
+          'forbuffer
+          org-preview-latex-default-process))))))
 
 (defun org-notes--pop-register (reg)
   "Not much of a pop for REG."
