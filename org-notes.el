@@ -36,17 +36,30 @@
 ;; display the currently selected org-note when in org-notes--helm-find, which
 ;; is used by `org-notes-goto' and `org-notes-helm-link-notes'
 ;;
-;; These functions can be very useful for browsing notes; use `org-notes-goto'
-;; to browse with `helm-execute-persistent-action', jump to an interesting
-;; note, and use `org-notes-jump-to-note' to jump back to location from which
-;; `org-notes-goto' was last called.
+;; These functions can be very useful for browsing notes; use `org-notes-helm-goto'
+;; to browse via `helm-execute-persistent-action', jump to an interesting
+;; note, and use `org-notes-jump-to-note' to jump back to the location from which
+;; `org-notes-helm-goto' was called.
+;;
+;; org-notes will automatically display latex fragments and enable pretty
+;; symbols when previewing. It also provides several variables for controlling
+;; behavior:
+;;
+;; 1. `org-notes-show-latex-on-jump' controls whether the latex fragments for
+;;    a subtree are rendered after jumping to it via `org-notes-helm-goto'.
+;; 2. `org-notes-accepted-tasks' controls which tasks will be tracked by org-notes.
+;; 3. `org-notes-hide-other-headings-after-jump' controls whether other headings
+;;    will be automatically folded after jumping using `org-notes-helm-goto'.
+;; 4. `org-notes-prompt-for-note' and `org-notes-always-add-note' control the
+;;    behavior of the note feature for linking notes with
+;;    `org-notes-helm-link-notes'.
 ;;
 ;;; Code:
 
 (require 'org)
 (require 'helm)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Variables and Bindings
 
 (defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE"))
@@ -88,7 +101,7 @@ Group 4: tags"
      "[ 	]*\\'"                               ; match rest of heading
      ))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Org Note Location Tracking
 
 (defun org-notes-org-id-locations-load-advice (funct)
@@ -124,7 +137,7 @@ Group 4: tags"
                       org-notes-accepted-tasks)
           (cons (org-get-heading) id))))))
 
-;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core Helm Interface
 
 (defun org-notes--helm-lookup-note (source-tags)
@@ -354,7 +367,7 @@ linked to by `org-notes-helm-link-notes'."
      (concat "org-notes does not have any interesting locations stored.  "
              "See docs for org-notes-jump-to-note"))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Low-level helper functions
 
 (defun org-notes--turn-on-display-latex-fragments ()

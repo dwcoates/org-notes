@@ -32,6 +32,10 @@ which point it will prompt you to select a note from `org-notes-locations`. The
 selected note and heading context of point will each have links added to each
 other's respective LINKS drawer.
 
+By default, `org-notes-helm-link-notes` will prompt for a note to be added to
+the link, which will be inserted just under it inside of the link drawer. Such
+notes can be used to clarify why certain notes are related.
+
 `helm-execute-persistent-action`, bound to `C-z` by default, can be used to
 display the currently selected org-note when in `org-notes--helm-find`, which
 is used by `org-notes-goto` and `org-notes-helm-link-notes`.
@@ -41,3 +45,14 @@ browse with `helm-execute-persistent-action`, jump to an interesting note, and
 use `org-notes-jump-to-note` to jump back to location from which
 `org-notes-goto` was last called.
 
+org-notes will automatically display latex fragments and enable pretty
+symbols when previewing. It also provides several variables for controlling
+behavior:
+1. `org-notes-show-latex-on-jump` controls whether the latex fragments for
+   a subtree are rendered after jumping to it via `org-notes-helm-goto`.
+2. `org-notes-accepted-tasks` controls which tasks will be tracked by org-notes.
+3. `org-notes-hide-other-headings-after-jump` controls whether other headings
+   will be automatically folded after jumping using `org-notes-helm-goto`.
+4. `org-notes-prompt-for-note` and `org-notes-always-add-note` control the
+   behavior of the note feature for linking notes with
+   `org-notes-helm-link-notes`.
