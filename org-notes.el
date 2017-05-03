@@ -80,7 +80,7 @@ location from which `org-notes-helm-goto' was called, and the cdr
 the location of last note *linked to* by
 `org-notes-helm-link-notes'." )
 
-(define-key org-mode-map (kbd "C-c l") 'org-notes-add-link-to-drawer)
+(define-key org-mode-map (kbd "C-c l") 'org-notes-helm-link-notes)
 (define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
 (global-set-key (kbd "C-c j") 'org-notes-helm-goto)
 (define-key org-mode-map (kbd "C-c C-j") 'org-notes-jump-to-note)
