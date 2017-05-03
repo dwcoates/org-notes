@@ -15,35 +15,48 @@ concepts in a way that is as searchable and appreciable as possible.
 
 Requires only [helm](https://github.com/emacs-helm/helm). 
 
+## Motivation
+
+I wrote this to make organizing, browsing, and studying my math notes far
+easier and much more pleasant. 
+
 ## Usage:
-
-Update `org-note-accepted-tasks` list to set the task types to which org-notes
-applies.
-
-The `org-notes--helm-find` function can be used to return the id for a given
-note.  This is only useful as an API function.
 
 The `org-notes-helm-goto` function is used to navigate to a particular note
 using `helm-org-notes-find` interface.
 
 The `org-notes-helm-link-notes` function is used to link two notes
-together. Should be called while point is in the context of an org heading, at
-which point it will prompt you to select a note from `org-notes-locations`. The
-selected note and heading context of point will each have links added to each
-other's respective LINKS drawer.
+together. It should be called while point is in the context of an org heading,
+and will then prompt you to select a note with which the current org heading
+should be linked. These results are displayed in a helm buffer, and using
+`helm-execute-persistent-action`, bound to `C-z` by default, will display
+currently selected note in a preview buffer. 
 
-By default, `org-notes-helm-link-notes` will prompt for a note to be added to
-the link, which will be inserted just under it inside of the link drawer. Such
-notes can be used to clarify why certain notes are related.
+The after selecting a target note with `org-notes-helm-link-notes`, each of
+the two notes will have the other's link added its LINKS drawer.
 
-`helm-execute-persistent-action`, bound to `C-z` by default, can be used to
-display the currently selected org-note when in `org-notes--helm-find`, which
-is used by `org-notes-goto` and `org-notes-helm-link-notes`.
+At the end of this process, by default, `org-notes-helm-link-notes` will
+prompt for a note to be added for the linking. This note will be inserted just
+under the new link inside of the link drawer. Such a note might be used to
+clarify the linking or explain why the two notes are related.
 
-These functions can be very useful for browsing notes; use `org-notes-goto` to
-browse with `helm-execute-persistent-action`, jump to an interesting note, and
-use `org-notes-jump-to-note` to jump back to location from which
-`org-notes-goto` was last called.
+These functions can be very useful for browsing notes; use
+`org-notes-helm-goto` along with its preview feature to peruse your
+notes. After selecting a note an interesting note, you can use
+`org-notes-jump-to-note` to jump back to the location from which
+`org-notes-goto` was last called. This makes for very fast navigation of notes.
+
+The preview feature also makes linking notes very natural and unemcumbering. I
+daresay that the process of creating links is otherwise prohibitively tedious.
+
+# Details
+
+The `org-note-accepted-tasks` list defines the task types to which org-notes
+applies. Only org headings with one of these tasks will be tracked by
+org-notes.
+
+The `org-notes--helm-find` function can be used to return the id for a given
+note.  This is only useful as an API function.
 
 org-notes will automatically display latex fragments and enable pretty
 symbols when previewing. It also provides several variables for controlling
