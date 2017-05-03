@@ -374,35 +374,13 @@ linked to by `org-notes-helm-link-notes'."
 Intended for use in the preview buffer, because
 `org-preview-latex-fragment' is a dumb toggle function that doesn't
 play well with `org-notes'."
-  (when (and (display-graphic-p) (equal major-mode 'org-mode))
-    (save-excursion
-      (let ((beg (save-excursion (org-back-to-heading) (point)))
-            (end (save-excursion (org-forward-heading-same-level 1 t) (point)))
-            (file (buffer-file-name (buffer-base-buffer))))
-        (org-format-latex
-         (concat org-preview-latex-image-directory "org-ltximg")
-         beg
-         end
-         (if (or (not file) (file-remote-p file))
-             temporary-file-directory
-           default-directory)
-         'overlays
-         nil
-         'forbuffer
-         org-preview-latex-default-process)))))
-
-(defun org-notes--turn-on-display-latex-fragments ()
-  "Display latex fragments in the current buffer.
-Intended for use in the preview buffer, because
-`org-preview-latex-fragment' is a dumb toggle function that doesn't
-play well with `org-notes'."
   (when (and (display-graphic-p)
              (equal major-mode 'org-mode))
     (org-with-wide-buffer
      (org-show-entry)
      (save-excursion
        (let ((beg (save-excursion (org-back-to-heading) (point)))
-             (end (save-excursion (org-end-of-subtree) (point)))
+             (end (save-excursion (org-end-of-subtree)))
              (file (buffer-file-name
                     (buffer-base-buffer))))
          (org-format-latex
