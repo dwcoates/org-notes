@@ -141,7 +141,7 @@ separate window, split from `helm-buffer'.  Used by
              ;; create preview buffer in the window split
              (switch-to-buffer buf)
              (delete-region (point-min) (point-max))
-             (let ((org-inhibit-startup t)) (org-mode))
+             (let* ((inhibit-message t) (org-inhibit-startup t)) (org-mode))
              (insert
               (let ((location (org-id-find candidate 'marker)))
                 (with-current-buffer (marker-buffer location)
@@ -153,11 +153,12 @@ separate window, split from `helm-buffer'.  Used by
                      (save-excursion (org-end-of-subtree) (point))))))))
              (beginning-of-buffer)
              ;; display latex fragments as images
-             (org-notes-turn-display-latex-fragments)
+             (org-notes-turn-on-display-latex-fragments)
+             (run-hooks helm-autoresize-mode-hook)
              ))
      )))
 
-(defun org-notes-turn-display-latex-fragments ()
+(defun org-notes-turn-on-display-latex-fragments ()
   "Display latex fragments in the current buffer.
 Intended for use in the preview buffer, because
 `org-preview-latex-fragment' is a dumb toggle function that doesn't
@@ -184,22 +185,26 @@ play well with `org-notes'."
   (interactive)
   (helm-execute-persistent-action 'persistent-action t))
 
-;; Reassign all bindings in `helm-map' for `helm-execute-persistent-action'
-;; to `org-notes--helm-split-window-for-display'.
-(defvar org-notes-keymap (make-composed-keymap
-                              (let ((map (make-keymap)))
-                                (mapc (lambda (key)
-                                        (define-key map key 'org-notes--helm-split-window-for-display))
-                                      (where-is-internal 'helm-execute-persistent-action helm-map))
-                                map)
-                              helm-map))
+(defvar org-notes-keymap
+  (make-composed-keymap
+   (let ((map (make-keymap)))
+     (mapc (lambda (key)
+             (define-key map key 'org-notes--helm-split-window-for-display))
+           (where-is-internal 'helm-execute-persistent-action helm-map))
+     map)
+   helm-map)
+  "Reassigns all bindings in `helm-map' for `helm-execute-persistent-action' to `org-notes--helm-split-window-for-display'.")
 
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
   (let ((note-locations (org-notes--helm-lookup-note
                          (when (eq major-mode 'org-mode)
                            (org-get-local-tags))))
-        (helm-onewindow-p t))
+        (resize helm-autoresize-mode)
+        (helm-autoresize-min-height (floor (/ (frame-height) 2.0)))
+        (helm-autoresize-max-height (floor (/ (frame-height) 2.0)))
+        (helm-resize-on-pa-text-height (floor (/ (frame-height) 2.0)))
+        (helm-truncate-lines t))
     (helm :sources (helm-build-sync-source "Org Notes"
                      :candidates note-locations
                      :candidate-number-limit 2500
@@ -207,17 +212,23 @@ play well with `org-notes'."
                      :multiline t
                      :volatile t
                      :keymap org-notes-keymap)
-         :buffer "*Org Notes Headings*")))
+          :buffer "*Org Notes Headings*")))
 
 (defun org-notes-helm-goto ()
   "Navigate to the location specified by an `helm-org-notes-find' call."
   (interactive)
-  (setcar org-notes--jump-to-note-register
-          (set-marker (make-marker) (point)))
-  (org-id-goto (org-notes--helm-find))
-  (setcdr org-notes--jump-to-note-register
-          (set-marker (make-marker) (point)))
-  (outline-show-subtree))
+  (let ((entry-point (set-marker (make-marker) (point)))
+        (location (org-notes--helm-find)))
+    (when location
+      (if entry-point
+          (setcar org-notes--jump-to-note-register entry-point)
+        (warn "Warning: Can't determine current point for org-notes jump register.
+Register unchanged, and `org-notes-jump-to-note' will not be updated."))
+      (org-id-goto location)
+      (when entry-point
+           (setcdr org-notes--jump-to-note-register
+                   (set-marker (make-marker) (point))))
+      (outline-show-subtree))))
 
 (defun org-notes--pop-register (reg)
   "Not much of a pop for REG."
