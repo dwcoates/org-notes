@@ -62,7 +62,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Variables and Bindings
 
-(defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "DONE" "NEXT"))
+(defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "NEXT"))
 (defvar org-notes-locations nil)
 (defvar org-notes-drawer-name "LINKS")
 (defvar org-notes-always-add-note nil
@@ -94,6 +94,7 @@ links drawer will be show.")
 (global-set-key (kbd "C-c j") 'org-notes-helm-goto)
 (define-key org-mode-map (kbd "C-c C-j") 'org-notes-jump-to-note)
 (global-set-key (kbd "C-c C-j") 'org-notes-jump-to-note)
+(define-key org-mode-map (kbd "C-c w") 'org-notes-toggle-drawer-visibility)
 
 (defun org-notes--heading-regexp ()
   "Regular expression for parsing headings in `org-notes-locations'.
@@ -538,14 +539,15 @@ description of this variable's affect."
                                flag))
           (user-error ":END: line missing at position %s" b))))))
 
-(defun org-notes-show-or-hide-drawers (show)
-  "Show or hide current subtree's interesting drawers, according to SHOW.
+(defun org-notes-toggle-drawer-visibility ()
+  "Show or hide current subtree's interesting drawers.
 
 This is a wrapper for `org-notes--flag-drawers'."
+  (interactive)
   (org-notes--flag-drawers
    (save-excursion (org-back-to-heading) (point))
    (save-excursion (outline-next-heading) (point))
-   show))
+   'cycle))
 
 (defun org-drawer-visible-p ()
   "Return the visiblity status of drawer at point.
@@ -563,11 +565,6 @@ matter."
         (not (overlays-in beg end))))))
 
 (remove-hook 'org-cycle-hook 'org-notes-cycle-drawers t)
-
-(define-key org-mode-map (kbd "C-c w") (defun org-notes-toggle-drawer-visibility ()
-                                         (interactive)
-                                         (org-notes-show-or-hide-drawers
-                                          'cycle)))
 
 (defun org-notes-show-subtree-latex (state)
   "Render all latex on subtree after a visibility state change, STATE."
