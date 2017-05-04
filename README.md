@@ -27,13 +27,13 @@ minimize the thought and time required to reference /and/ create notes.
 
 ## Motivation
 
-I wrote this to make organizing, browsing, studying, and, to a lesser extent,
-taking my math notes easier and more pleasant. I've written several packages
-and many functions to this effect, including functions for wrapping latex
-symbols with other latex symbols, latex yasnippets snippets, latex
-integrations with yasnippet+org-pretty-symbols, etc. With a bit of practice
-and utilities, real-time latex note-taking is more or less achievable,
-depending on how fast the speaker is speaking.
+I wrote this to make organizing, browsing, studying, and taking my math notes
+easier and more pleasant. I've written several packages and many functions to
+this effect, including functions for wrapping latex symbols with other latex
+symbols, latex yasnippets snippets, latex integrations with
+yasnippet+org-pretty-symbols, etc. With a bit of practice and utilities,
+real-time latex note-taking is more or less achievable, depending on how fast
+the speaker is speaking.
 
 ## Requirements:
 
@@ -87,7 +87,7 @@ concepts fast.
 ## Customizable settings
 
 1. `org-notes-accepted-tasks` is a list that controls which task types will be
-    tracked by org-notes. For example: '("NOTE" "LEARN" "REVIEW" "NEXT")
+    tracked by org-notes. For example: `'("NOTE" "LEARN" "REVIEW" "NEXT")`
 2. `org-notes-prompt-for-note` and `org-notes-always-add-note` control the
    behavior of the link note feature for `org-notes-helm-link-notes`.
 3. `org-notes-show-latex-on-jump` controls whether the latex fragments for
