@@ -81,6 +81,10 @@ These are stored as a cons cell in, the car of which is the last
 location from which `org-notes-helm-goto' was called, and the cdr
 the location of last note *linked to* by
 `org-notes-helm-link-notes'." )
+(defvar org-notes-show-logbook-on-cycle t
+  "Non-nil means show LOGBOOK contents on org visiblity cycling.")
+(defvar org-notes-show-subtree-latex-on-cycle t
+  "Non-nil means render latex for current subtree after cycles to visible.")
 
 (define-key org-mode-map (kbd "C-c l") 'org-notes-helm-link-notes)
 (define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
@@ -100,8 +104,15 @@ Group 4: tags"
      "\\(?: +\\(\\[#.\\]\\)\\)?"         ; match priority cookies, which may or may not exist
      "\\(?: +\\(.*?\\)\\)??"             ; match base heading, which must exist
      "\\(?: +\\(:[[:alnum:]_@#%:]+:\\)\\)?" ; match tags, which may or may not exist
-     "[ 	]*\\'"                               ; match rest of heading
-     ))
+     "[ 	]*\\'"))
+
+(defun org-notes-drawer-cycle-regexp ()
+  "Return the regexp for drawers to be shown after org visibility cycling.
+Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
+    (format "\\(%s\\|^.*:%s:.*$\\)+?"
+            (if org-notes-show-logbook-on-cycle
+                (concat "^.*:" (org-log-into-drawer) ":.*$") "")
+            org-notes-drawer-name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Org Note Location Tracking
@@ -485,6 +496,46 @@ is run whenever the agenda is updated or initialized."
     (org-notes--turn-on-display-latex-fragments t))))
 
 (add-hook 'org-agenda-finalize-hook 'org-notes--display-latex-in-org-agenda)
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; Org Visiblity Cycling
+
+(defun org-notes-show-drawers (state)
+  "Re-hide all drawers after a visibility state change, STATE."
+  (interactive)
+  (when (and (derived-mode-p 'org-mode)
+       (not (memq state '(overview folded contents))))
+    (save-excursion
+      (let* ((globalp (memq state '(contents all)))
+             (beg (if globalp (point-min) (point)))
+             (end (if globalp (point-max)
+                    (if (eq state 'children)
+                        (save-excursion (outline-next-heading) (point))
+                      (org-end-of-subtree t)))))
+  (goto-char beg)
+  (while (re-search-forward (org-notes-drawer-cycle-regexp) end t)
+    (let ((drawer-beg (save-excursion
+                        (beginning-of-line 1)
+                        (point)))
+          (b (match-end 0)))
+      (if (re-search-forward "^.*:END:"
+           (save-excursion (outline-next-heading)
+                           (point))
+           t)
+          (outline-flag-region drawer-beg (point) nil)
+        (user-error ":END: line missing at position %s" b))))))))
+
+(add-hook 'org-cycle-hook 'org-notes-show-drawers t)
+
+(defun org-notes-show-subtree-latex (state)
+  "Render all latex on subtree after a visibility state change, STATE."
+  (interactive)
+  (when (and org-notes-show-subtree-latex-on-cycle
+             (derived-mode-p 'org-mode)
+             (not (memq state '(overview folded contents))))
+    (org-notes--turn-on-display-latex-fragments)))
+
+(add-hook 'org-cycle-hook 'org-notes-show-subtree-latex)
 
 ;;;;;;;
 ;;; END
