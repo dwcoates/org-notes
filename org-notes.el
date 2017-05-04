@@ -81,8 +81,11 @@ These are stored as a cons cell in, the car of which is the last
 location from which `org-notes-helm-goto' was called, and the cdr
 the location of last note *linked to* by
 `org-notes-helm-link-notes'." )
-(defvar org-notes-show-logbook-on-cycle t
-  "Non-nil means show LOGBOOK contents on org visiblity cycling.")
+(defvar org-notes-show-drawers-on-cycle t
+  "Show drawer contents on org visibility cycling.
+Non-nil means show drawer default log drawer and links drawer on
+cycling, unless the value is 'no-log-default, in which only the
+links drawer will be show.")
 (defvar org-notes-show-subtree-latex-on-cycle t
   "Non-nil means render latex for current subtree after cycles to visible.")
 
@@ -110,8 +113,8 @@ Group 4: tags"
   "Return the regexp for drawers to be shown after org visibility cycling.
 Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
     (format "\\(%s\\|^.*:%s:.*$\\)+?"
-            (if org-notes-show-logbook-on-cycle
-                (concat "^.*:" (org-log-into-drawer) ":.*$") "")
+            (if (eq org-notes-show-drawers-on-cycle 'no-log-default)
+                "" (concat "^.*:" (org-log-into-drawer) ":.*$"))
             org-notes-drawer-name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -500,11 +503,13 @@ is run whenever the agenda is updated or initialized."
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Org Visiblity Cycling
 
-(defun org-notes-show-drawers (state)
-  "Re-hide all drawers after a visibility state change, STATE."
-  (interactive)
-  (when (and (derived-mode-p 'org-mode)
-       (not (memq state '(overview folded contents))))
+(defun org-notes-cycle-drawers (state)
+  "Show relevant drawers after a visibility state change, STATE.
+
+See `org-notes--flag-drawers' for a description."
+  (when (and org-notes-show-drawers-on-cycle
+             (derived-mode-p 'org-mode)
+             (not (memq state '(overview folded contents children))))
     (save-excursion
       (let* ((globalp (memq state '(contents all)))
              (beg (if globalp (point-min) (point)))
@@ -512,24 +517,60 @@ is run whenever the agenda is updated or initialized."
                     (if (eq state 'children)
                         (save-excursion (outline-next-heading) (point))
                       (org-end-of-subtree t)))))
-  (goto-char beg)
-  (while (re-search-forward (org-notes-drawer-cycle-regexp) end t)
-    (let ((drawer-beg (save-excursion
-                        (beginning-of-line 1)
-                        (point)))
-          (b (match-end 0)))
-      (if (re-search-forward "^.*:END:"
-           (save-excursion (outline-next-heading)
-                           (point))
-           t)
-          (outline-flag-region drawer-beg (point) nil)
-        (user-error ":END: line missing at position %s" b))))))))
+        (org-notes--flag-drawers beg end)))))
 
-(add-hook 'org-cycle-hook 'org-notes-show-drawers t)
+(defun org-notes--flag-drawers (beg end &optional flag)
+  "Show the drawers between BEG and END, with option FLAG.
+
+If FLAG is equal to 'cycle, then cycle the visibility of relevant
+drawers, otherwise drawer state is set to open iff FLAG and
+`org-notes-show-drawers-on-cycle' are non-nil.
+
+See `org-notes-show-drawers-on-cycle' for a complete
+description of this variable's affect."
+  (save-excursion
+    (goto-char beg)
+    (while (re-search-forward (org-notes-drawer-cycle-regexp) end t)
+      (let ((b (match-end 0)))
+        (if (org-at-drawer-p)
+            (org-flag-drawer (if (eq flag 'cycle)
+                                 (org-drawer-visible-p)
+                               flag))
+          (user-error ":END: line missing at position %s" b))))))
+
+(defun org-notes-show-or-hide-drawers (show)
+  "Show or hide current subtree's interesting drawers, according to SHOW.
+
+This is a wrapper for `org-notes--flag-drawers'."
+  (org-notes--flag-drawers
+   (save-excursion (org-back-to-heading) (point))
+   (save-excursion (outline-next-heading) (point))
+   show))
+
+(defun org-drawer-visible-p ()
+  "Return the visiblity status of drawer at point.
+
+Returns non-nil if at a drawer that is currently open, and nil
+otherwise.
+
+Uses `org-at-drawer-p', which is not very robust and won't
+recognize being in the middle of a drawer.  This should not
+matter."
+  (save-excursion
+    (when (org-at-drawer-p)
+      (let ((beg (save-excursion (end-of-line) (point)))
+            (end (save-excursion (end-of-visual-line) (point))))
+        (not (overlays-in beg end))))))
+
+(remove-hook 'org-cycle-hook 'org-notes-cycle-drawers t)
+
+(define-key org-mode-map (kbd "C-c w") (defun org-notes-toggle-drawer-visibility ()
+                                         (interactive)
+                                         (org-notes-show-or-hide-drawers
+                                          'cycle)))
 
 (defun org-notes-show-subtree-latex (state)
   "Render all latex on subtree after a visibility state change, STATE."
-  (interactive)
   (when (and org-notes-show-subtree-latex-on-cycle
              (derived-mode-p 'org-mode)
              (not (memq state '(overview folded contents))))
