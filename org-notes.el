@@ -464,7 +464,7 @@ NOTE is non-nil."
   (let ((org-log-into-drawer-temp org-log-into-drawer)
         (org-log-note-headings
                (append
-                (list (cons 'note "Linked on %T"))
+                (list (cons 'note "_Linked on_ %T"))
                 (assq-delete-all
                  'note (copy-seq org-log-note-headings)))))
     (setq-default org-log-into-drawer org-notes-drawer-name)
