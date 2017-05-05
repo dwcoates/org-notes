@@ -416,29 +416,48 @@ Non-nil WHOLE-BUFFER results in the latex fragments being
 displayed over the entire buffer, instead of only the current
 subtree."
   (when (display-graphic-p)
-    (org-with-wide-buffer
-     (org-show-entry)
-     (save-excursion
-       (let ((beg (if whole-buffer
+    (save-excursion
+      (let* ((beg (if whole-buffer
                       (point-min)
-                    (save-excursion (org-back-to-heading) (point))))
+                    (org-with-wide-buffer
+                     (save-excursion (org-back-to-heading) (point)))))
              (end (if whole-buffer
                       (point-max)
-                    (save-excursion (org-end-of-subtree))))
+                    (org-with-wide-buffer
+                     (save-excursion (outline-next-heading) (point)))))
              (file (buffer-file-name
-                    (buffer-base-buffer))))
-         (org-format-latex
-          (concat org-preview-latex-image-directory "org-ltximg")
-          beg
-          end
-          (if (or (not file)
-                  (file-remote-p file))
-              temporary-file-directory
-            default-directory)
-          'overlays
-          nil
-          'forbuffer
-          org-preview-latex-default-process))))))
+                    (buffer-base-buffer)))
+             (gen-latex (lambda (a b) (org-format-latex
+                                  (concat
+                                   org-preview-latex-image-directory
+                                   "org-ltximg")
+                                  a
+                                  b
+                                  (if (or (not file)
+                                          (file-remote-p file))
+                                      temporary-file-directory
+                                    default-directory)
+                                  'overlays
+                                  nil
+                                  'forbuffer
+                                  org-preview-latex-default-process))))
+        (org-with-wide-buffer
+         (save-excursion
+           (org-show-entry)
+           (funcall gen-latex beg end))
+         (unless whole-buffer
+           (let ((first-sibling (save-excursion
+                                  (org-forward-heading-same-level 1)
+                                  (point))))
+             (while (not (equal (save-excursion
+                                  (outline-next-heading)
+                                  (point))
+                                first-sibling))
+               (outline-next-heading)
+               (funcall gen-latex
+                        (point)
+                        (save-excursion (end-of-line) (point)))))))
+        ))))
 
 (defun org-notes--pop-register (reg)
   "Not much of a pop for REG."
@@ -515,9 +534,7 @@ See `org-notes--flag-drawers' for a description."
       (let* ((globalp (memq state '(contents all)))
              (beg (if globalp (point-min) (point)))
              (end (if globalp (point-max)
-                    (if (eq state 'children)
-                        (save-excursion (outline-next-heading) (point))
-                      (org-end-of-subtree t)))))
+                    (save-excursion (outline-next-heading) (point)))))
         (org-notes--flag-drawers beg end)))))
 
 (defun org-notes--flag-drawers (beg end &optional flag)
@@ -564,7 +581,7 @@ matter."
             (end (save-excursion (end-of-visual-line) (point))))
         (not (overlays-in beg end))))))
 
-(remove-hook 'org-cycle-hook 'org-notes-cycle-drawers t)
+(add-hook 'org-cycle-hook 'org-notes-cycle-drawers t)
 
 (defun org-notes-show-subtree-latex (state)
   "Render all latex on subtree after a visibility state change, STATE."
