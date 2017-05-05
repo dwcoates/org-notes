@@ -95,6 +95,8 @@ links drawer will be show.")
 (define-key org-mode-map (kbd "C-c C-j") 'org-notes-jump-to-note)
 (global-set-key (kbd "C-c C-j") 'org-notes-jump-to-note)
 (define-key org-mode-map (kbd "C-c w") 'org-notes-toggle-drawer-visibility)
+(define-key org-mode-map (kbd "C-c q") 'org-notes-show-org-entry-latex)
+
 
 (defun org-notes--heading-regexp ()
   "Regular expression for parsing headings in `org-notes-locations'.
@@ -449,10 +451,10 @@ subtree."
            (let ((first-sibling (save-excursion
                                   (org-forward-heading-same-level 1)
                                   (point))))
-             (while (not (equal (save-excursion
-                                  (outline-next-heading)
-                                  (point))
-                                first-sibling))
+             (while (<= (save-excursion
+                          (outline-next-heading)
+                          (point))
+                        first-sibling)
                (outline-next-heading)
                (funcall gen-latex
                         (point)
@@ -589,6 +591,13 @@ matter."
              (derived-mode-p 'org-mode)
              (not (memq state '(overview folded contents))))
     (org-notes--turn-on-display-latex-fragments)))
+
+(defun org-notes-show-org-entry-latex ()
+  "Show latex for current org entry at point."
+  (interactive)
+  (if (derived-mode-p 'org-mode)
+      (org-notes--turn-on-display-latex-fragments)
+    (error "Not in org-mode")))
 
 (add-hook 'org-cycle-hook 'org-notes-show-subtree-latex)
 
