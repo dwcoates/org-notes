@@ -208,6 +208,9 @@ Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
       (remove-hook 'helm-update-hook 'org-notes--prettify-helm-buffer)
       ret)))
 
+;; Complete IDs for `org-insert-link' with `org-notes--helm-find'.
+(org-link-set-parameters "id" :complete 'org-notes--helm-find)
+
 (defun org-notes--sort-locations (&optional source-tags)
   "Sort `org-notes-locations' by the list of tags SOURCE-TAGS.
 Sort priority for a given heading in `org-notes-locations' is
@@ -297,8 +300,7 @@ separate window, split from `helm-buffer'.  Used by
              ;; display latex fragments as images
              (org-notes--turn-on-display-latex-fragments)
              ;; resize helm buffer
-             (run-hooks helm-autoresize-mode-hook)
-             )))))
+             (run-hooks helm-autoresize-mode-hook))))))
 
 (defun org-notes--helm-split-window-for-display ()
   "`helm-execute-presistent-action' with split helm window."
@@ -331,6 +333,32 @@ Register unchanged, and `org-notes-jump-to-note' will not be updated."))
         (org-notes--turn-on-display-latex-fragments))
       )))
 
+(defun org-notes-helm-insert-id (arg)
+  "Insert at point the ID selected w/ ARG."
+  (interactive "P")
+  (insert (org-notes--helm-find)))
+
+(defun org-notes-helm-insert-link (arg &optional description)
+  "Insert a link using org-notes selection with ARG, DESCRIPTION.
+
+If DESCRIPTION is nil, propmpt for a description.
+
+If prefix arg ARG is non-nil, use header title as link discription
+
+This is a temporary function.  Overwriting `org-insert-link' to
+use this automatically is the goal."
+  (interactive "P")
+  (let*  ((id (org-notes--helm-find))
+          (location (org-id-find id)))
+    (org-insert-link
+     (directory-file-name (car location))
+     (concat "id:" id)
+     (or description
+         (and arg
+              (let ((headline (car (rassoc id org-notes-locations))))
+                (string-match (org-notes--heading-regexp) headline)
+                (match-string 3 headline)))))))
+
 ;; `org-notes-helm-link-notes'
 (defun org-notes-helm-link-notes (arg)
   "Links selected note in a log drawer for current heading with prefix arg ARG.
@@ -344,26 +372,39 @@ the linking."
   (unless (eq major-mode 'org-mode)
     (error "Cannot link notes when not in an org context"))
   (catch
-      (let* ((loc-heading (or (org-get-heading t t) (error "Not at an org-mode heading")))
-          (dest-id (let ((helm-onewindow-p t))
-                     (or (org-notes--helm-find) (throw 'exit nil))))
-          (dest-heading (let ((case-fold-search)
-                              (heading (car (rassoc dest-id org-notes-locations))))
-                          (string-match
-                           (org-notes--heading-regexp)
-                           heading)
-                          (or (match-string 3 heading)
-                              "UNKNOWN")))
-          (forward-link (org-make-link-string
-                         (concat "id:" dest-id)
-                         dest-heading))
-          (back-link (org-make-link-string
-                      (concat "id:" (org-id-get-create))
-                      loc-heading))
-          (note (or arg
-                    org-notes-always-add-note
-                    (when org-notes-prompt-for-note
-                      (y-or-n-p "Add note for link? ")))))
+      (let* ((loc-heading (or (org-get-heading t t)
+                              (error "Not at an org-mode heading")))
+             (dest-id (let ((helm-onewindow-p t))
+                        (or (org-notes--helm-find) (throw 'exit nil))))
+             (dest-heading (let ((case-fold-search)
+                                 (heading (car (rassoc dest-id
+                                                       org-notes-locations))))
+                             (string-match
+                              (org-notes--heading-regexp)
+                              heading)
+                             (or (match-string 3 heading)
+                                 "UNKNOWN")))
+             (forward-link (org-make-link-string
+                            (concat "id:" dest-id)
+                            dest-heading))
+             (back-link (org-make-link-string
+                         (concat "id:" (org-id-get-create))
+                         loc-heading))
+             (note (or arg
+                       org-notes-always-add-note
+                       (when org-notes-prompt-for-note
+                         (y-or-n-p "Add note for link? ")))))
+        ;; When region is active, also embed the link there.  This should
+        ;; maybe be replaced with a general function, that will also be used
+        ;; during the inserting of links in the drawers.  the advantage of
+        ;; this is it gets to use built-in org-mode stuff.
+        (when (use-region-p)
+          (org-insert-link
+           (directory-file-name (car (org-id-find dest-id)))
+           (concat "id:" dest-id)
+           (buffer-substring-no-properties
+            (region-beginning)
+            (region-end))))
         ;; Insert forward link in source note
         (org-notes--add-link-to-drawer forward-link ">" note)
         ;; Insert backward link in linked note
@@ -374,6 +415,10 @@ the linking."
             (org-with-wide-buffer
              (goto-char dest-loc)
              (org-notes--add-link-to-drawer back-link "<"))))
+        ;; close drawers after opening
+        (save-excursion
+          (org-back-to-heading)
+          (org-cycle-hide-drawers 'children))
         (message "Linked '%s' and '%s'" loc-heading dest-heading))))
 
 ;; `org-notes-jump-to-note'
