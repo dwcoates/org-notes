@@ -88,6 +88,7 @@ cycling, unless the value is 'no-log-default, in which only the
 links drawer will be show.")
 (defvar org-notes-show-subtree-latex-on-cycle t
   "Non-nil means render latex for current subtree after cycles to visible.")
+(defvar org-notes-notify-on-capture t "ID a note on capture when non-nil.")
 
 (define-key org-mode-map (kbd "C-c l") 'org-notes-helm-link-notes)
 (define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
@@ -157,16 +158,10 @@ Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
                       org-notes-accepted-tasks)
           (cons (org-get-heading) id))))))
 
-(when (require 'org-capture nil t)
-  (defun org-notes-org-capture-finalize (&optional arg)
-   "Hook for automatically adding an org-id for the captured note."
-   (interactive "P")
-   (unless (or org-note-abort
-               (not (member (elt (org-heading-components) 2)
-                            org-notes-accepted-tasks)))
-     (org-id-get-create))
-   (funcall 'org-capture-finalize arg))
-  (define-key org-capture-mode-map (kbd "C-c C-c") 'org-notes-org-capture-finalize))
+(defun org-notes-notify-on-capture ()
+  "Function for IDing a note on capture when `org-notes-notify-on-capture' is non-nil."
+  (org-id-get-create))
+(add-hook 'org-capture-before-finalize-hook 'org-notes-notify-on-capture)
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core Helm Interface
