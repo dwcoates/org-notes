@@ -89,6 +89,8 @@ links drawer will be show.")
 (defvar org-notes-show-subtree-latex-on-cycle t
   "Non-nil means render latex for current subtree after cycles to visible.")
 (defvar org-notes-notify-on-capture t "ID a note on capture when non-nil.")
+(defvar org-notes-footnote-superscript t
+  "Non-nil means wrap footnotes in `org-mode' superscript embellishment.")
 
 (define-key org-mode-map (kbd "C-c l") 'org-notes-helm-link-notes)
 (define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
@@ -443,6 +445,66 @@ linked to by `org-notes-helm-link-notes'."
     (message
      (concat "org-notes does not have any interesting locations stored.  "
              "See docs for org-notes-jump-to-note"))))
+
+;;;;;;;;;;;;
+;; Footnotes
+
+(defun org-notes-insert-footnote-superscript (label)
+  "Insert a footnote with LABEL and return its starting point."
+  (if org-notes-footnote-superscript
+      (progn
+        (insert (format "^{[fn:%s]}" label))
+        (when (not (looking-at "[\.,!;]"))
+          (just-one-space)))
+    (insert "[fn:%s]"))
+  (save-excursion (search-backward "]") (point)))
+
+(defun org-footnote-new ()
+  "Insert a new footnote.
+This command prompts for a label.  If this is a label referencing an
+existing label, only insert the label.  If the footnote label is empty
+or new, let the user edit the definition of the footnote.
+
+This is a revision of `org-footnote-new' in org-footnote.el."
+  (interactive)
+  (unless (org-footnote--allow-reference-p)
+    (user-error "Cannot insert a footnote here"))
+  (let* ((all (org-footnote-all-labels))
+	 (label
+	  (if (eq org-footnote-auto-label 'random)
+	      (format "%x" (random most-positive-fixnum))
+	    (org-footnote-normalize-label
+	     (let ((propose (org-footnote-unique-label all)))
+	       (if (eq org-footnote-auto-label t) propose
+		 (completing-read
+		  "Label (leave empty for anonymous): "
+		  (mapcar #'list all) nil nil
+		  (and (eq org-footnote-auto-label 'confirm) propose))))))))
+    (cond ((not label)
+           (goto-char
+            (org-notes-insert-footnote-superscript ":")))
+	  ((member label all)
+	   (org-notes-insert-footnote-superscript label)
+	   (message "New reference to existing note"))
+	  (org-footnote-define-inline
+       (goto-char
+        (org-notes-insert-footnote-superscript (concat label ":")))
+	   (org-footnote-auto-adjust-maybe))
+	  (t
+	   (org-notes-insert-footnote-superscript label)
+	   (let ((p (org-footnote-create-definition label)))
+	     ;; `org-footnote-goto-definition' needs to be called
+	     ;; after `org-footnote-auto-adjust-maybe'.  Otherwise
+	     ;; both label and location of the definition are lost.
+	     ;; On the contrary, it needs to be called before
+	     ;; `org-edit-footnote-reference' so that the remote
+	     ;; editing buffer can display the correct label.
+	     (if (ignore-errors (org-footnote-goto-definition label p))
+		 (org-footnote-auto-adjust-maybe)
+	       ;; Definition was created outside current scope: edit
+	       ;; it remotely.
+	       (org-footnote-auto-adjust-maybe)
+	       (org-edit-footnote-reference)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Low-level helper functions
