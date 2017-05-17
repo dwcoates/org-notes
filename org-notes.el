@@ -474,37 +474,35 @@ subtree."
                      (save-excursion (outline-next-heading) (point)))))
              (file (buffer-file-name
                     (buffer-base-buffer)))
-             (gen-latex (lambda (a b) (org-format-latex
-                                  (concat
-                                   org-preview-latex-image-directory
-                                   "org-ltximg")
-                                  a
-                                  b
-                                  (if (or (not file)
-                                          (file-remote-p file))
-                                      temporary-file-directory
-                                    default-directory)
-                                  'overlays
-                                  nil
-                                  'forbuffer
-                                  org-preview-latex-default-process))))
+             (gen-latex (lambda (a b)
+                          (org-format-latex
+                           (concat
+                            org-preview-latex-image-directory
+                            "org-ltximg")
+                           a b
+                           (if (or (not file)
+                                   (file-remote-p file))
+                               temporary-file-directory
+                             default-directory)
+                           'overlays
+                           nil
+                           'forbuffer
+                           org-preview-latex-default-process))))
         (org-with-wide-buffer
          (save-excursion
            (org-show-entry)
            (funcall gen-latex beg end))
          (unless whole-buffer
-           (let ((first-sibling (save-excursion
-                                  (org-forward-heading-same-level 1)
-                                  (point))))
+           (let ((first-sibling
+                  (save-excursion (org-forward-heading-same-level 1) (point))))
              (while (<= (save-excursion
-                          (outline-next-heading)
-                          (point))
-                        first-sibling)
+                          (outline-next-heading) (point)) first-sibling)
                (outline-next-heading)
-               (funcall gen-latex
-                        (point)
-                        (save-excursion (end-of-line) (point)))))))
-        ))))
+               (funcall
+                gen-latex
+                (point)
+                (save-excursion (end-of-line) (point))))))))
+      )))
 
 (defun org-notes--pop-register (reg)
   "Not much of a pop for REG."
