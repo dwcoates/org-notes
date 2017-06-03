@@ -234,6 +234,7 @@ Relevent notes are those note types denoted by `org-notes-accepted-tasks'."
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
   (unless org-notes-locations (org-notes-locations-load))
+  (org-notes-display-buffers)
   (let ((note-locations (org-notes--helm-lookup-note
                          (when (eq major-mode 'org-mode)
                            (org-get-local-tags))))
@@ -321,6 +322,11 @@ titles in `org-notes-locations'."
                 org-notes--display-buffers))
         buf))))
 
+(defun org-notes-delete-display-buffers ()
+  "Delete all preview display buffers."
+  (mapc (lambda (entry) (kill-buffer (cdr entry)))
+        org-notes--display-buffers))
+
 (defun org-notes--helm-display-note (candidate)
   "Display the note corresponding to CANDIDATE.
 This will display the note corresponding to candidate in a
@@ -342,8 +348,6 @@ separate window, split from `helm-buffer'.  Used by
              ;; remove preview window if present
              (delete-window (get-buffer-window buf)))
             (t
-             (print (buffer-name buf))  ; temp
-             (print buf-name)           ; temp
              ;; create preview window if not present
              (switch-to-buffer buf)
              (rename-buffer buf-name)
@@ -357,9 +361,9 @@ separate window, split from `helm-buffer'.  Used by
              (setq-local org-pretty-entities t)
              (org-restart-font-lock)
              ;; display latex fragments as images
-             (org-notes--turn-on-display-latex-fragments)
+             (org-notes--turn-on-display-latex-fragments t)
              ;; resize helm buffer
-             (run-hooks helm-autoresize-mode-hook)
+             (set-window-text-height win (floor (* (frame-height) 0.7)))
              (recenter (point-min)))))))
 
 (defun org-notes--helm-split-window-for-display ()
