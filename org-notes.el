@@ -298,21 +298,28 @@ titles in `org-notes-locations'."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Helm Persistent Action
 
-(defvar org-notes-temp-buffers nil)
+(defvar org-notes--display-buffers nil
+  "Buffers for displaying previews of org-note files.")
 
-(defun org-notes--get-temp-buffer (id)
-  "FUCKING ID FUCK."
-
+(defun org-notes--get-display-buffer (id)
+  "Return display buffer corresponding to ID."
   (let* ((file (org-id-find-id-file id))
-         (entry (assoc file org-notes-temp-buffers)))
-    (if entry
-        (get-buffer (cdr entry))
-      (let ((buf (create-file-buffer file)))
-        (with-current-buffer buf
-         (push (cons file buf)
-               org-notes-temp-buffers)
-         (insert-file-contents-literally file)
-         buf)))))
+         (entry (assoc file org-notes--display-buffers)))
+    (unless file
+      (error "Cannot find the candidate's location"))
+    (let ((buf (if entry (get-buffer (cdr entry))
+                 (create-file-buffer file))))
+      (with-current-buffer buf
+        (when (not entry)
+          ;; Create preview buffer.
+          ;; Needed for the Latex image caching, as inline latex images are saved
+          ;; and cached according to the file in which they live. This approach
+          ;; prevents the Latex being re-compiled for the preview buffer.
+          (insert-file-contents file)
+          (let* ((inhibit-message t) (org-inhibit-startup t)) (org-mode))
+          (push (cons file buf)
+                org-notes--display-buffers))
+        buf))))
 
 (defun org-notes--helm-display-note (candidate)
   "Display the note corresponding to CANDIDATE.
@@ -320,95 +327,40 @@ This will display the note corresponding to candidate in a
 separate window, split from `helm-buffer'.  Used by
 `helm-execute-persistent-action' in `org-notes--helm-find'."
   (save-excursion
-    (let* ((buf      (org-notes--get-temp-buffer candidate))
+    (let* ((buf      (org-notes--get-display-buffer candidate))
+           (buf-name (with-current-buffer buf
+                       (substring-no-properties
+                        (org-with-wide-buffer
+                         (goto-char (org-find-entry-with-id candidate))
+                         (org-get-heading t t)))))
            (win      (get-buffer-window buf))
            (helm--reading-passwd-or-string t))
       (cond ((and buf win (eq buf (get-buffer helm-current-buffer)))
              (user-error
               "Can't kill `helm-current-buffer' without quitting session"))
-            ((and buf win)
-             ;; remove window split
+            ((and buf win (equal (buffer-name buf) buf-name))
+             ;; remove preview window if present
              (delete-window (get-buffer-window buf)))
             (t
-             (with-current-buffer buf
-               (let ((location (set-marker
-                                (make-marker)
-                                (org-find-entry-with-id candidate))))
-                (unless location
-                  (error "Cannot find the candidate's location"))
-                ;; name preview buffer
-                (rename-buffer (substring-no-properties
-                                (with-current-buffer (marker-buffer location)
-                                  (org-with-wide-buffer
-                                   (goto-char location)
-                                   (org-get-heading t t)))))
-                ;; create preview window
-                (delete-region (point-min) (point-max))
-                (let* ((inhibit-message t) (org-inhibit-startup t)) (org-mode))
-                (with-current-buffer (marker-buffer location)
-                  (org-with-wide-buffer
-                   (goto-char location)
-                   (narrow-to-region
-                    (save-excursion (org-back-to-heading) (point))
-                    (save-excursion (org-end-of-subtree) (point)))))
-                (beginning-of-buffer)
-                ;; turn on pretty entities
-                (setq-local org-pretty-entities t)
-                (org-restart-font-lock)
-                ;; display latex fragments as images
-                (org-notes--turn-on-display-latex-fragments)
-                ;; resize helm buffer
-                (run-hooks helm-autoresize-mode-hook))))))))
-
-;; (defun org-notes--helm-display-note (candidate)
-;;   "Display the note corresponding to CANDIDATE.
-;; This will display the note corresponding to candidate in a
-;; separate window, split from `helm-buffer'.  Used by
-;; `helm-execute-persistent-action' in `org-notes--helm-find'."
-;;   (save-excursion
-;;     (let* ((buf      (org-notes--get-temp-buffer candidate))
-;;            (win      (get-buffer-window buf))
-;;            (helm--reading-passwd-or-string t))
-;;       (cond ((and buf win (eq buf (get-buffer helm-current-buffer)))
-;;              (user-error
-;;               "Can't kill `helm-current-buffer' without quitting session"))
-;;             ((and buf win)
-;;              ;; remove window split
-;;              (delete-window (get-buffer-window buf)))
-;;             (t
-;;              (with-current-buffer buf
-;;               (let ((location (org-id-find candidate 'marker)))
-;;                 (unless location
-;;                   (error "Cannot find the candidate's location"))
-;;                 ;; name preview buffer
-;;                 (rename-buffer (substring-no-properties
-;;                                 (with-current-buffer (marker-buffer location)
-;;                                   (org-with-wide-buffer
-;;                                    (goto-char location)
-;;                                    (org-get-heading t t)))))
-;;                 (print "renaming...")
-;;                 ;; create preview window
-;;                 (print "deleting...")
-;;                 (delete-region (point-min) (point-max))
-;;                 (print "turing on org....")
-;;                 (let* ((inhibit-message t) (org-inhibit-startup t)) (org-mode))
-;;                 (print "inserting entry...")
-;;                 (insert
-;;                  (with-current-buffer (marker-buffer location)
-;;                    (org-with-wide-buffer
-;;                     (goto-char location)
-;;                     (buffer-substring
-;;                      (save-excursion (org-back-to-heading) (point))
-;;                      (save-excursion (org-end-of-subtree) (point))))))
-;;                 (print "moving to beginning of buffer...")
-;;                 (beginning-of-buffer)
-;;                 ;; turn on pretty entities
-;;                 (setq-local org-pretty-entities t)
-;;                 (org-restart-font-lock)
-;;                 ;; display latex fragments as images
-;;                 (org-notes--turn-on-display-latex-fragments)
-;;                 ;; resize helm buffer
-;;                 (run-hooks helm-autoresize-mode-hook))))))))
+             (print (buffer-name buf))  ; temp
+             (print buf-name)           ; temp
+             ;; create preview window if not present
+             (switch-to-buffer buf)
+             (rename-buffer buf-name)
+             (widen)
+             (goto-char (org-find-entry-with-id candidate))
+             (narrow-to-region
+              (save-excursion (org-back-to-heading) (point))
+              (save-excursion (org-end-of-subtree) (point)))
+             (goto-char (point-min))
+             ;; turn on pretty entities
+             (setq-local org-pretty-entities t)
+             (org-restart-font-lock)
+             ;; display latex fragments as images
+             (org-notes--turn-on-display-latex-fragments)
+             ;; resize helm buffer
+             (run-hooks helm-autoresize-mode-hook)
+             (recenter (point-min)))))))
 
 (defun org-notes--helm-split-window-for-display ()
   "`helm-execute-presistent-action' with split helm window."
