@@ -234,7 +234,7 @@ Relevent notes are those note types denoted by `org-notes-accepted-tasks'."
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
   (unless org-notes-locations (org-notes-locations-load))
-  (org-notes-display-buffers)
+  (org-notes-delete-display-buffers)
   (let ((note-locations (org-notes--helm-lookup-note
                          (when (eq major-mode 'org-mode)
                            (org-get-local-tags))))
@@ -325,7 +325,8 @@ titles in `org-notes-locations'."
 (defun org-notes-delete-display-buffers ()
   "Delete all preview display buffers."
   (mapc (lambda (entry) (kill-buffer (cdr entry)))
-        org-notes--display-buffers))
+        org-notes--display-buffers)
+  (setq org-notes--display-buffers nil))
 
 (defun org-notes--helm-display-note (candidate)
   "Display the note corresponding to CANDIDATE.
