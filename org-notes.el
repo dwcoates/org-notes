@@ -62,37 +62,58 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Variables and Bindings
 
-(defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG" "ISSUE" "FEATURE" "NEXT"))
+(defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG"
+                                   "ISSUE" "FEATURE" "NEXT"))
+
 (defvar org-notes-locations nil)
+
 (defvar org-notes-drawer-name "LINKS")
+
 (defvar org-notes-always-add-note nil
   "If non-nil, always insert a note with `org-notes-helm-link-notes' link.")
+
 (defvar org-notes-show-latex-on-jump t)
+
 (defvar org-notes-display-latex-in-agenda t
   "Non-nil prompts `org-agenda' to render latex fragments in `org-agenda-buffer'.")
+
 (defvar org-notes-prompt-for-note t
   "If non-nil, ask to add a note inserted with `org-notes-helm-link-notes' link.
 Has no effect if `org-notes-always-add-note' is non-nil.")
+
 (defvar org-notes-hide-other-headings-after-jump t
   "Non-nil means fold headings other than target heading after using `org-notes-helm-goto'.")
+
 (defvar org-notes--jump-to-note-register (cons nil nil)
   "Possible locations for `org-notes-jump-to-note'.
 These are stored as a cons cell in, the car of which is the last
 location from which `org-notes-helm-goto' was called, and the cdr
 the location of last note *linked to* by
 `org-notes-helm-link-notes'." )
+
 (defvar org-notes-show-drawers-on-cycle t
   "Show drawer contents on org visibility cycling.
 Non-nil means show drawer default log drawer and links drawer on
 cycling, unless the value is 'no-log-default, in which only the
 links drawer will be show.")
+
 (defvar org-notes-show-subtree-latex-on-cycle t
   "Non-nil means render latex for current subtree after cycles to visible.")
+
 (defvar org-notes-notify-on-capture t "ID a note on capture when non-nil.")
+
 (defvar org-notes-footnote-superscript t
   "Non-nil means wrap footnotes in `org-mode' superscript embellishment.")
+
 (defvar org-notes-footnote-superscript t
   "Non-nil means wrap footnotes in `org-mode' superscript embellishment.")
+
+(defcustom org-notes-locations-file (convert-standard-filename
+				  (concat user-emacs-directory ".org-notes-locations"))
+  "The file for remembering in which file an ID was defined.
+This variable is only relevant when `org-id-track-globally' is set."
+  :group 'org-notes
+  :type 'file)
 
 (define-key org-mode-map (kbd "C-c l") 'org-notes-helm-link-notes)
 (define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
@@ -101,7 +122,6 @@ links drawer will be show.")
 (global-set-key (kbd "C-c C-j") 'org-notes-jump-to-note)
 (define-key org-mode-map (kbd "C-c w") 'org-notes-toggle-drawer-visibility)
 (define-key org-mode-map (kbd "C-c q") 'org-notes-show-org-entry-latex)
-
 
 (defun org-notes--heading-regexp ()
   "Regular expression for parsing headings in `org-notes-locations'.
@@ -128,44 +148,63 @@ Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Org Note Location Tracking
 
-(defun org-notes-org-id-locations-load-advice (funct)
-  "`org-id-locations-load' advice updating `org-notes-locations' w/ FUNCT and ARGS."
-  (funcall funct)
+(defun org-notes-locations-save ()
+  "Save `org-notes-locations' in `org-notes-locations-file'."
+  (let ((out (if (hash-table-p org-notes-locations)
+                 (org-id-hash-to-alist org-notes-locations)
+               org-notes-locations)))
+    (with-temp-file org-notes-locations-file
+      (let ((print-level nil)
+            (print-length nil))
+        (print out (current-buffer))))))
+
+(add-hook 'kill-emacs-hook 'org-notes-locations-save)
+
+(defun org-notes-locations-load ()
+  "Read the data from `org-notes-locations-file'."
+  (setq org-notes-locations nil)
+  (with-temp-buffer
+    (condition-case nil
+        (progn
+          (insert-file-contents-literally org-notes-locations-file)
+          (goto-char (point-min))
+          (setq org-notes-locations (read (current-buffer))))
+      (error
+       (message "Could not read org-notes from %s.  Setting it to nil."
+                org-notes-locations-file))))
+  ;; (setq org-notes-files (mapcar 'car org-id-locations)) this requires
+
+  ;; changing the cons cells in `org-notes-locations' to lists, and therefore
+  ;; all the cdr calls to cadr (setq org-notes-locations
+  ;; (org-id-alist-to-hash org-notes-locations))
+  )
+
+(defun org-notes-update-note-locations ()
+  "Set `org-notes-locations' to notes referred to by `org-id-locations'.
+Relevent notes are those note types denoted by `org-notes-accepted-tasks'."
   (let ((inhibit-message t))
     (setq org-notes-locations
          (remove-if 'not
                     (mapcar
                      'org-notes-get-heading
                      (mapcar 'cadr (org-id-hash-to-alist org-id-locations))))))
-  (message "Updated org-id-locations. Contains %d notes."
+  (org-notes-locations-save)
+  (message "Updated org-id-locations.  Contains %d notes."
            (length org-notes-locations)))
 
-(advice-add 'org-id-locations-load :around 'org-notes-org-id-locations-load-advice)
+;; fix
+(defun org-notes-create-note ()
+  "Function for IDing a note on capture when `org-notes-notify-on-capture' is non-nil."
+  (org-notes-create-id)
+  (org-notes-locations-save))
+(add-hook 'org-capture-before-finalize-hook 'org-notes-create-note)
 
-(defun org-notes-org-id-add-location-advice (funct &rest args)
-  "`org-id-add-location' advice updating `org-notes-locations' w/ FUNCT and and id from ARGS."
-  (apply funct args)
+(defun org-notes-create-id ()
+  "Create an ID for captured note and add note to `org-notes-locations'."
+  (org-id-get (point) 'create)
   (let ((head-id (org-notes-get-heading (car args))))
     (when head-id
       (push head-id org-notes-locations))))
-
-(advice-add 'org-id-add-location :around 'org-notes-org-id-add-location-advice)
-
-(defun org-notes-get-heading (id)
-  "Return the cons cell consisting of heading and the ID to which heading corresponds."
-  (let ((addr (org-id-find id)))
-    (when addr
-      (with-current-buffer
-          (org-get-agenda-file-buffer (car addr))
-        (goto-char (cdr addr))
-        (when (member (elt (org-heading-components) 2)
-                      org-notes-accepted-tasks)
-          (cons (org-get-heading) id))))))
-
-(defun org-notes-notify-on-capture ()
-  "Function for IDing a note on capture when `org-notes-notify-on-capture' is non-nil."
-  (org-id-get-create))
-(add-hook 'org-capture-before-finalize-hook 'org-notes-notify-on-capture)
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Core Helm Interface
@@ -192,13 +231,12 @@ Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
 
 (defun org-notes--helm-find ()
   "Return the org-id for a given note in the `org-notes-locations' alist."
+  (unless org-notes-locations (org-notes-locations-load))
   (let ((note-locations (org-notes--helm-lookup-note
                          (when (eq major-mode 'org-mode)
                            (org-get-local-tags))))
         (resize helm-autoresize-mode)
         (helm-truncate-lines t))
-    (unless (> (length note-locations) 0)
-      (error "No notes.  Has org-notes has not been initialized?"))
     (add-hook 'helm-update-hook 'org-notes--prettify-helm-buffer)
     (let ((ret (helm :sources (helm-build-sync-source "Org Notes"
                                 :candidates note-locations
@@ -564,6 +602,17 @@ subtree."
                 (point)
                 (save-excursion (end-of-line) (point))))))))
       )))
+
+(defun org-notes-get-heading (id)
+  "Return the cons cell consisting of heading and the ID to which heading corresponds."
+  (let ((addr (org-id-find id)))
+    (when addr
+      (with-current-buffer
+          (org-get-agenda-file-buffer (car addr))
+        (goto-char (cdr addr))
+        (when (member (elt (org-heading-components) 2)
+                      org-notes-accepted-tasks)
+          (cons (org-get-heading) id))))))
 
 (defun org-notes--pop-register (reg)
   "Not much of a pop for REG."
