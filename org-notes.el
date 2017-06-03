@@ -91,6 +91,8 @@ links drawer will be show.")
 (defvar org-notes-notify-on-capture t "ID a note on capture when non-nil.")
 (defvar org-notes-footnote-superscript t
   "Non-nil means wrap footnotes in `org-mode' superscript embellishment.")
+(defvar org-notes-footnote-superscript t
+  "Non-nil means wrap footnotes in `org-mode' superscript embellishment.")
 
 (define-key org-mode-map (kbd "C-c l") 'org-notes-helm-link-notes)
 (define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
@@ -145,7 +147,7 @@ Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
   (apply funct args)
   (let ((head-id (org-notes-get-heading (car args))))
     (when head-id
-      (add-to-list 'org-notes-locations head-id))))
+      (push head-id org-notes-locations))))
 
 (advice-add 'org-id-add-location :around 'org-notes-org-id-add-location-advice)
 
@@ -195,6 +197,8 @@ Only has an effect if org-notes-drawer-cycle-on-visibility-change is non-nil."
                            (org-get-local-tags))))
         (resize helm-autoresize-mode)
         (helm-truncate-lines t))
+    (unless (> (length note-locations) 0)
+      (error "No notes.  Has org-notes has not been initialized?"))
     (add-hook 'helm-update-hook 'org-notes--prettify-helm-buffer)
     (let ((ret (helm :sources (helm-build-sync-source "Org Notes"
                                 :candidates note-locations
