@@ -63,16 +63,23 @@
 ;;; Variables and Bindings
 
 (defvar org-notes-accepted-tasks '("NOTE" "LEARN" "REVIEW" "BUG"
-                                   "ISSUE" "FEATURE" "NEXT"))
+                                   "ISSUE" "FEATURE" "NEXT")
+  "Tasks that are considered for `org-notes'.
+Must also have an `org-id' to be added to database.")
 
-(defvar org-notes-locations nil)
+(defvar org-notes-locations nil
+  "Alist containing known org-note titles and their IDs.")
 
-(defvar org-notes-drawer-name "LINKS")
+(defvar org-notes-drawer-name "LINKS"
+  "Name of drawer under which links for a particular org-note will be collected.")
 
 (defvar org-notes-always-add-note nil
   "If non-nil, always insert a note with `org-notes-helm-link-notes' link.")
 
-(defvar org-notes-show-latex-on-jump t)
+(defvar org-notes-show-latex-on-jump t
+  "Display latex when jumping to another note.
+When non-nil, inline Latex will be autormatically displayed after
+jumping to another `org-note' with `org-notes-jump-to-note'.")
 
 (defvar org-notes-display-latex-in-agenda t
   "Non-nil prompts `org-agenda' to render latex fragments in `org-agenda-buffer'.")
