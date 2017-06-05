@@ -652,13 +652,36 @@ subtree."
     (setcdr reg temp))
   reg)
 
-(defun org-notes--insert-link (link entry-delimiter)
+(defun org-notes--insert-link-or-update (link entry-delimiter)
   "Insert LINK at point using `org-log-into-drawer', delimited by ENTRY-DELIMITER."
   (goto-char (org-log-beginning t))
+  (narrow-to-region (point)
+                    (save-excursion (re-search-forward ":END:") (point)))
+  (while (save-excursion
+           (re-search-forward ":[><]: \\(\[\[[*]+\]\]\\)$") (point))
+    (print (match-string 2)))
   (insert (concat ":" entry-delimiter ": " link "\n"))
   (goto-char (org-log-beginning))
   (forward-line -1)
   (org-indent-drawer))
+
+(defun tester ()
+  (interactive)
+
+  (let* ((org-log-into-drawer org-notes-drawer-name)
+         (link-regexp ":[<>]:[ ]+\\[\\(\\[.+\\]\\)\\(\\[.+\\]\\)\\]")
+         (beg (goto-char (org-log-beginning t)))
+         (end (save-excursion (re-search-forward ":END:")
+                              (point)))
+         links)
+    (while  (re-search-forward link-regexp end t)
+      (let ((link-id (match-string 1))
+            (link-title (match-string 2)))
+        (when t ;; (equal id link-id)
+          (replace-match "HELLO"))
+        )
+      )
+    ))
 
 (defvar org-notes--insert-link-callback nil)
 
@@ -672,12 +695,12 @@ NOTE is non-nil."
           (call-interactively 'org-add-note)
           (setq org-notes--insert-link-callback
                 ;; will this closure work? I don't htink so
-                (apply-partially 'org-notes--insert-link
+                (apply-partially 'org-notes--insert-link-or-update
                                  link entry-delimiter))
           (advice-add 'org-store-log-note
                       :around 'org-notes--store-note-advice))
       (let ((org-log-into-drawer org-notes-drawer-name))
-        (org-notes--insert-link link entry-delimiter)))))
+        (org-notes--insert-link-or-update link entry-delimiter)))))
 
 (defun org-notes--store-note-advice (funct)
   "Advice necessary to grab onto `org-store-log-note' w/ FUNCT."
