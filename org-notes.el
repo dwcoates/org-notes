@@ -456,12 +456,6 @@ the linking."
                               heading)
                              (or (match-string 3 heading)
                                  "UNKNOWN")))
-             (forward-link (org-make-link-string
-                            (concat "id:" dest-id)
-                            dest-heading))
-             (back-link (org-make-link-string
-                         (concat "id:" (org-id-get-create))
-                         loc-heading))
              (note (or arg
                        org-notes-always-add-note
                        (when org-notes-prompt-for-note
@@ -478,7 +472,7 @@ the linking."
             (region-beginning)
             (region-end))))
         ;; Insert forward link in source note
-        (org-notes--add-link-to-drawer forward-link ">" note)
+        (org-notes--add-link-to-drawer dest-id dest-heading ">" note)
         ;; Insert backward link in linked note
         (let ((dest-loc (org-id-find dest-id 'marker)))
           (unless dest-loc
@@ -486,7 +480,7 @@ the linking."
           (with-current-buffer (marker-buffer dest-loc)
             (org-with-wide-buffer
              (goto-char dest-loc)
-             (org-notes--add-link-to-drawer back-link "<"))))
+             (org-notes--add-link-to-drawer (org-id-get-create) loc-heading "<"))))
         ;; close drawers after opening
         (save-excursion
           (org-back-to-heading)
@@ -652,40 +646,38 @@ subtree."
     (setcdr reg temp))
   reg)
 
-(defun org-notes--insert-link-or-update (link entry-delimiter)
-  "Insert LINK at point using `org-log-into-drawer', delimited by ENTRY-DELIMITER."
-  (goto-char (org-log-beginning t))
-  (narrow-to-region (point)
-                    (save-excursion (re-search-forward ":END:") (point)))
-  (while (save-excursion
-           (re-search-forward ":[><]: \\(\[\[[*]+\]\]\\)$") (point))
-    (print (match-string 2)))
-  (insert (concat ":" entry-delimiter ": " link "\n"))
-  (goto-char (org-log-beginning))
-  (forward-line -1)
-  (org-indent-drawer))
-
-(defun tester ()
-  (interactive)
-
+(defun org-notes--insert-link-or-update (id title entry-delimiter)
+  "Insert ID and TITLE at point using `org-log-into-drawer', delimited by ENTRY-DELIMITER."
   (let* ((org-log-into-drawer org-notes-drawer-name)
-         (link-regexp ":[<>]:[ ]+\\[\\(\\[.+\\]\\)\\(\\[.+\\]\\)\\]")
+         (link-regexp "[ ]+:[<>]:[ ]+\\[\\[id:\\(.+\\)\\]\\[\\(.+\\)\\]\\]$")
          (beg (goto-char (org-log-beginning t)))
          (end (save-excursion (re-search-forward ":END:")
                               (point)))
-         links)
+         replacep)
     (while  (re-search-forward link-regexp end t)
-      (let ((link-id (match-string 1))
-            (link-title (match-string 2)))
-        (when t ;; (equal id link-id)
-          (replace-match "HELLO"))
-        )
-      )
-    ))
+      (let ((link-id (substring-no-properties (match-string 1)))
+            (link-title (substring-no-properties (match-string 2))))
+        (print id)
+        (print link-id)
+        (when (equal id link-id)
+          (forward-line 0)
+          (re-search-forward link-title end)
+          (replace-match title)
+          (setq replacep t))))
+    (unless replacep
+      (goto-char (org-log-beginning t))
+      (insert (concat ":"
+                      entry-delimiter
+                      ": "
+                      (org-make-link-string (concat "id:" id) title)
+                      "\n"))
+      (goto-char (org-log-beginning))
+      (forward-line -1)
+      (org-indent-drawer))))
 
 (defvar org-notes--insert-link-callback nil)
 
-(defun org-notes--add-link-to-drawer (link entry-delimiter &optional note)
+(defun org-notes--add-link-to-drawer (id title entry-delimiter &optional note)
   "Add LINK to links drawer, preceded by ENTRY-DELIMITER, add org note iff NOTE.
 This function will add an accompanying org note to the link if
 NOTE is non-nil."
@@ -696,11 +688,11 @@ NOTE is non-nil."
           (setq org-notes--insert-link-callback
                 ;; will this closure work? I don't htink so
                 (apply-partially 'org-notes--insert-link-or-update
-                                 link entry-delimiter))
+                                 id title entry-delimiter))
           (advice-add 'org-store-log-note
                       :around 'org-notes--store-note-advice))
       (let ((org-log-into-drawer org-notes-drawer-name))
-        (org-notes--insert-link-or-update link entry-delimiter)))))
+        (org-notes--insert-link-or-update id title entry-delimiter)))))
 
 (defun org-notes--store-note-advice (funct)
   "Advice necessary to grab onto `org-store-log-note' w/ FUNCT."
