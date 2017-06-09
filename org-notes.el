@@ -800,6 +800,190 @@ matter."
 
 (add-hook 'org-cycle-hook 'org-notes-show-subtree-latex)
 
+
+(defun org-notes-wrap-with-pair (pair beg end)
+    (when (and beg end (> end beg))
+      (let* ((active-pair (progn (--first (equal (car it) pair)
+                                          sp-pair-list))))
+        (goto-char end)
+        (save-excursion
+          (insert (cdr active-pair))
+          (goto-char beg)
+          (insert (car active-pair))
+          (sp--indent-region beg end))
+        (forward-char (length (cdr active-pair)))
+        (sp-get-thing t))))
+
+(defun org-notes-sp-wrap-with-pair (pair beg end)
+    (or (org-notes-wrap-with-pair pair beg end)
+        (self-insert-command 1) ; retruns nil
+        ))
+
+(defun org-notes-wrap-with-meta-latex-and-execute (beg end &optional long-latex)
+    (let* ((open-delim (if long-latex "\\[" "$"))
+           (latex (org-notes-sp-wrap-with-pair open-delim beg end)))
+      (when latex
+       (org-toggle-latex-fragment)
+       latex)))
+
+(defun org-notes-wrap-latex-with-delims-and-render (open key beg end)
+     (let*  ((latex (org-notes-sp-wrap-with-pair open beg end)))
+             ;; this is a bad hack.
+             ;; Robust solution will be quite a bit more code
+             (when latex
+               (let* ((lb (plist-get latex :beg))
+                      (le (plist-get latex :end))
+                      (sp-max-pair-length (- le lb)))
+                 (org-notes-wrap-with-meta-latex-and-execute
+                  lb le (> sp-max-pair-length 70))))))
+
+(defun org-notes--create-latex-wrapper (open close key)
+    `(progn
+       (sp-pair ,open ,close :actions '(navigate))
+       (define-key org-mode-map (kbd ,key)
+         (lambda (beg end)
+           (interactive (if (region-active-p)
+                            (list (region-beginning)
+                                  (region-end))
+                          (list nil nil)))
+           (org-notes-sp-wrap-with-pair ,open beg end)))
+       (define-key org-mode-map (kbd ,(upcase key))
+         (lambda (beg end)
+           (interactive (if (region-active-p)
+                            (list (region-beginning)
+                                  (region-end))
+                          (list nil nil)))
+           (org-notes-wrap-latex-with-delims-and-render ,open ,close beg end)))))
+
+(defmacro org-notes-create-latex-wrapper (open close key)
+    (org-notes--create-latex-wrapper open close key))
+
+(defun org-notes-wrap-previous-latex (&optional keep-whitespace funct)
+      "temporary and very sloppy. Doing much better would require a
+    cfg, but this works pretty well."
+      (interactive)
+      (unless keep-whitespace
+        (while (and (not (looking-at "^"))
+           (not (save-excursion
+              (backward-char)
+              (looking-at "[^\\\s-] "))))
+          (backward-char)))
+      (let* ((limit (line-beginning-position))
+             (beg (org-notes-parse-simple-latex))
+             (latex (and (not (equal (point) beg)) (> (point) limit))))
+        (and latex
+             (funcall (or funct
+                 'org-notes-wrap-with-meta-latex-and-execute) beg (point))
+             (or (just-one-space) t))))
+
+  ;; (defun org-notes-parse-simple-latex-bad ()
+  ;;   (save-excursion
+  ;;     (when (save-excursion (backward-char) (looking-at "[)}]"))
+  ;;       (sp-backward-sexp)
+  ;;       ;; handle two-component latex structures like \frac{}{}
+  ;;       (when (save-excursion (backward-char) (looking-at "[)}]"))
+  ;;         (sp-backward-sexp)))
+  ;;     (unless (save-excursion (backward-char) (looking-at "[ ][^\\\s-]" ))
+  ;;       (backward-word)
+  ;;       (when (save-excursion (backward-char) (looking-at "\\\\"))
+  ;;         (backward-char 1)))
+  ;;     (if (looking-at "[\^_\*\=]")
+  ;;         (progn (org-notes-parse-simple-latex) (print "hello!"))
+  ;;       (point))))
+
+  (defun org-notes-parse-simple-latex ()
+    (save-excursion
+      (when (save-excursion (backward-char) (looking-at "[)}]"))
+        (sp-backward-sexp)
+        ;; handle two-component latex structures like \frac{}{}
+        (when (save-excursion (backward-char) (looking-at "[)}]"))
+          (sp-backward-sexp)))
+      (re-search-backward "[ ]" (line-beginning-position) t)
+      (forward-char)
+      (point)))
+
+(defun org-notes-auto-render-latex ()
+    "Replaces space"
+    (interactive)
+    (unless (and (> (- (point) (line-beginning-position)) 2)
+                 (save-excursion (backward-char 2) (looking-at "[^\\\s-] "))
+                 (org-notes-wrap-previous-latex))
+      (org-self-insert-command 1)))
+
+  (defun org-notes--wrap-previous (open key)
+    `(define-key org-mode-map (kbd ,(concat "C-c e " key))
+       (lambda () (interactive)
+         (org-notes-wrap-previous-latex
+          t
+          (lambda (beg end) (org-notes-wrap-with-pair ,open beg end))))))
+
+  (defmacro org-notes-wrap-previous (open key)
+    (org-notes--wrap-previous open key))
+
+  (define-key org-mode-map (kbd "SPC") 'org-notes-auto-render-latex)
+  (define-key org-mode-map (kbd "C-c k") 'org-cycle)
+
+(org-notes-wrap-previous "\\mathcal{" "c")
+    (org-notes-wrap-previous "^{" "i")
+    (org-notes-wrap-previous "_{" "u")
+    (org-notes-wrap-previous "\\hat{" "h")
+    (org-notes-wrap-previous "\\bar{" "b")
+    (org-notes-wrap-previous "\\text{" "x")
+
+    ;; normal latex wrappers
+    (org-notes-create-latex-wrapper "\\mathcal{" "}" "m")
+    (org-notes-create-latex-wrapper "\\begin{align*}\n" "\n\\end{align*}" "a")
+    (org-notes-create-latex-wrapper "^{" "}" "i")
+    (org-notes-create-latex-wrapper "_{" "}" "u")
+    (org-notes-wrap-previous "\\mathcal{" "c")
+    (org-notes-create-latex-wrapper "\\hat{" "}" "h")
+    (org-notes-create-latex-wrapper "\\bar{" "}" "b")
+    (org-notes-create-latex-wrapper "\\text{" "}" "t")
+
+    ;; special latex meta wrappers
+    (sp-pair "$" "$")
+    (define-key org-mode-map (kbd "$")
+      (lambda (beg end)
+        (interactive (if (region-active-p)
+                              (list (region-beginning)
+                                    (region-end))
+                            (list nil nil)))
+        (org-notes-wrap-with-meta-latex-and-execute beg end)))
+
+    (sp-pair "\\[" "\\]" :actions '(navigate))
+    (define-key org-mode-map (kbd "\\")
+      (lambda (beg end)
+        (interactive (if (region-active-p)
+                              (list (region-beginning)
+                                    (region-end))
+                            (list nil nil)))
+        (org-notes-wrap-with-meta-latex-and-execute beg end t)))
+
+(defun insert-char-with-wrap (wrap-char-beg wrap-char-end &optional beg end)
+    "Wrap region with wrap"
+    (if (and beg end)
+        (let ((beg-marker (set-marker (make-marker) beg))
+              (end-marker (set-marker (make-marker) end)))
+          (save-excursion
+            (goto-char (marker-position beg-marker))
+            (insert wrap-char-beg)
+            (goto-char (marker-position end-marker))
+            (insert (or wrap-char-end wrap-char-beg)))
+          (goto-char (marker-position end-marker))
+          (forward-char) t)
+      (self-insert-command 1)))
+
+  (defun -insert-symbol (wrap-char-beg wrap-char-end)
+    `(lambda (beg end)
+       (interactive (if (region-active-p)
+                        (list (region-beginning)
+                              (region-end))
+                      (list nil nil)))
+       (insert-char-with-wrap ,wrap-char-beg ,wrap-char-end beg end)))
+
+  (defmacro insert-symbol (wrap-char-beg &optional wrap-char-end)
+    (-insert-symbol wrap-char-beg wrap-char-end))
+
 ;;;;;;;
 ;;; END
 
