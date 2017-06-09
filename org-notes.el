@@ -936,31 +936,6 @@ of some sort, but this works pretty well."
       (org-self-insert-command 1))
     (setq org-notes--autorender-last-call (float-time)))
 
-(defun insert-char-with-wrap (wrap-char-beg wrap-char-end &optional beg end)
-    "Wrap region with wrap"
-    (if (and beg end)
-        (let ((beg-marker (set-marker (make-marker) beg))
-              (end-marker (set-marker (make-marker) end)))
-          (save-excursion
-            (goto-char (marker-position beg-marker))
-            (insert wrap-char-beg)
-            (goto-char (marker-position end-marker))
-            (insert (or wrap-char-end wrap-char-beg)))
-          (goto-char (marker-position end-marker))
-          (forward-char) t)
-      (self-insert-command 1)))
-
-(defun -insert-symbol (wrap-char-beg wrap-char-end)
-  `(lambda (beg end)
-     (interactive (if (region-active-p)
-                      (list (region-beginning)
-                            (region-end))
-                    (list nil nil)))
-     (insert-char-with-wrap ,wrap-char-beg ,wrap-char-end beg end)))
-
-(defmacro insert-symbol (wrap-char-beg &optional wrap-char-end)
-  (-insert-symbol wrap-char-beg wrap-char-end))
-
 ;;
 ;; Bindings
 ;;
