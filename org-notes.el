@@ -923,7 +923,7 @@ of some sort, but this works pretty well."
     (forward-char)
     (point)))
 
-(defvar org-notes-autorender-delay 100 "Delay in microseconds for autorendering.")
+(defvar org-notes-autorender-delay 0.2 "Delay in seconds for autorendering.")
 
 (defun org-notes-auto-render-latex ()
     "Replace two consecutive spaces with one space and wrap/render previous latex."
@@ -931,8 +931,8 @@ of some sort, but this works pretty well."
     (unless (and
              (< (- (float-time) org-notes--autorender-last-call)
                 org-notes-autorender-delay)
-             (org-notes-wrap-previous-latex) ; superfluous?
-             )
+             ;; superfluous?
+             (org-notes-wrap-previous-latex))
       (org-self-insert-command 1))
     (setq org-notes--autorender-last-call (float-time)))
 
