@@ -812,6 +812,8 @@ matter."
 (org-notes-create-latex-wrappers "\\bar{" "}" "b")
 (org-notes-create-latex-wrappers "\\text{" "}" "t")
 
+(defvar org-notes--autorender-last-call (float-time) "Last time `org-notes-auto-render-latex' was called.")
+
 (defun org-notes-wrap-with-pair (pair beg end)
   "Insert delimiters corresponding to PAIR at BEG and END.
 
@@ -921,14 +923,18 @@ of some sort, but this works pretty well."
     (forward-char)
     (point)))
 
+(defvar org-notes-autorender-delay 100 "Delay in microseconds for autorendering.")
+
 (defun org-notes-auto-render-latex ()
     "Replace two consecutive spaces with one space and wrap/render previous latex."
     (interactive)
-    (unless (and (> (- (point) (line-beginning-position)) 2)
-                 (save-excursion (backward-char 2) (looking-at "[^\\\s-] "))
-                 (org-notes-wrap-previous-latex))
-      ;; org-self-insert necessary?
-      (org-self-insert-command 1)))
+    (unless (and
+             (< (- (float-time) org-notes--autorender-last-call)
+                org-notes-autorender-delay)
+             (org-notes-wrap-previous-latex) ; superfluous?
+             )
+      (org-self-insert-command 1))
+    (setq org-notes--autorender-last-call (float-time)))
 
 (defun insert-char-with-wrap (wrap-char-beg wrap-char-end &optional beg end)
     "Wrap region with wrap"
@@ -980,7 +986,6 @@ of some sort, but this works pretty well."
                            (region-end))
                    (list nil nil)))
     (org-notes-wrap-with-meta-latex-and-execute beg end t)))
-
 
 ;;;;;;;
 ;;; END
