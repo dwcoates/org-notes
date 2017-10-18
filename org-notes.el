@@ -123,13 +123,16 @@ This variable is only relevant when `org-id-track-globally' is set."
   :group 'org-notes
   :type 'file)
 
-(define-key org-mode-map (kbd "C-c l") 'org-notes-helm-link-notes)
-(define-key org-mode-map (kbd "C-c j") 'org-notes-helm-goto)
-(global-set-key (kbd "C-c j") 'org-notes-helm-goto)
+(defvar org-notes-autorender-delay 0.2
+  "Delay in seconds for autorendering.")
+
+(define-key org-mode-map (kbd "C-c l")   'org-notes-helm-link-notes)
+(define-key org-mode-map (kbd "C-c j")   'org-notes-helm-goto)
+(global-set-key          (kbd "C-c j")   'org-notes-helm-goto)
 (define-key org-mode-map (kbd "C-c C-j") 'org-notes-jump-to-note)
-(global-set-key (kbd "C-c C-j") 'org-notes-jump-to-note)
-(define-key org-mode-map (kbd "C-c w") 'org-notes-toggle-drawer-visibility)
-(define-key org-mode-map (kbd "C-c q") 'org-notes-show-org-entry-latex)
+(global-set-key          (kbd "C-c C-j") 'org-notes-jump-to-note)
+(define-key org-mode-map (kbd "C-c w")   'org-notes-toggle-drawer-visibility)
+(define-key org-mode-map (kbd "C-c q")   'org-notes-show-org-entry-latex)
 
 (defun org-notes--heading-regexp ()
   "Regular expression for parsing headings in `org-notes-locations'.
@@ -804,6 +807,12 @@ matter."
 ;;;;;;;;;;;;;;;;
 ;; Latex Editing
 
+;; Define functions for wrapping org text with markup when region is active, and
+;; simply entering the corresponding key, otherwise. For example, pressing =$= with
+;; region active will insert a dollar sign at the beginning and end of the
+;; region, and will simply insert a dollar sign at point, i.e., the expected
+;; behavior, if no region is active.
+
 (org-notes-create-latex-wrappers "\\mathcal{" "}" "m")
 (org-notes-create-latex-wrappers "\\begin{align*}\n" "\n\\end{align*}" "a")
 (org-notes-create-latex-wrappers "^{" "}" "i")
@@ -811,8 +820,14 @@ matter."
 (org-notes-create-latex-wrappers "\\hat{" "}" "h")
 (org-notes-create-latex-wrappers "\\bar{" "}" "b")
 (org-notes-create-latex-wrappers "\\text{" "}" "t")
+(org-notes-create-latex-wrappers "\\tilde{" "}" "e")
+(org-notes-create-latex-wrappers "\\vec{" "}" "v")
+(org-notes-create-latex-wrappers "\\mathbf{" "}" "o")
+(org-notes-create-latex-wrappers "\\mathbb{" "}" "l")
+(org-notes-create-latex-wrappers "\\mathbb{" "}" "l")
 
-(defvar org-notes--autorender-last-call (float-time) "Last time `org-notes-auto-render-latex' was called.")
+(defvar org-notes--autorender-last-call (float-time)
+  "Last time `org-notes-auto-render-latex' was called.")
 
 (defun org-notes-wrap-with-pair (pair beg end)
   "Insert delimiters corresponding to PAIR at BEG and END.
@@ -922,8 +937,6 @@ of some sort, but this works pretty well."
     (re-search-backward "[ ]" (line-beginning-position) t)
     (forward-char)
     (point)))
-
-(defvar org-notes-autorender-delay 0.2 "Delay in seconds for autorendering.")
 
 (defun org-notes-auto-render-latex ()
     "Replace two consecutive spaces with one space and wrap/render previous latex."
