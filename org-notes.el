@@ -214,8 +214,9 @@ Relevent notes are those note types denoted by `org-notes-accepted-tasks'."
 
 (defun org-notes-create-id ()
   "Create an ID for captured note and add note to `org-notes-locations'."
-  (org-id-get (point) 'create)
-  (let ((head-id (org-notes-get-heading (car args))))
+
+  (let ((head-id (org-notes-get-heading (org-id-get (point)
+                                                    'create))))
     (when head-id
       (push head-id org-notes-locations))))
 
