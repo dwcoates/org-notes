@@ -814,19 +814,6 @@ matter."
 ;; region, and will simply insert a dollar sign at point, i.e., the expected
 ;; behavior, if no region is active.
 
-(org-notes-create-latex-wrappers "\\mathcal{" "}" "m")
-(org-notes-create-latex-wrappers "\\begin{align*}\n" "\n\\end{align*}" "a")
-(org-notes-create-latex-wrappers "^{" "}" "i")
-(org-notes-create-latex-wrappers "_{" "}" "u")
-(org-notes-create-latex-wrappers "\\hat{" "}" "h")
-(org-notes-create-latex-wrappers "\\bar{" "}" "b")
-(org-notes-create-latex-wrappers "\\text{" "}" "t")
-(org-notes-create-latex-wrappers "\\tilde{" "}" "e")
-(org-notes-create-latex-wrappers "\\vec{" "}" "v")
-(org-notes-create-latex-wrappers "\\mathbf{" "}" "o")
-(org-notes-create-latex-wrappers "\\mathbb{" "}" "l")
-(org-notes-create-latex-wrappers "\\mathbb{" "}" "l")
-
 (defvar org-notes--autorender-last-call (float-time)
   "Last time `org-notes-auto-render-latex' was called.")
 
@@ -902,6 +889,19 @@ key) to `org-noteswrap-latex-with-delims-and-render'."
 (defmacro org-notes-create-latex-wrappers (open close key)
   "Macro for `org-notes--create-latex-wrapper'."
     (org-notes--create-latex-wrapper open close key))
+
+(org-notes-create-latex-wrappers "\\mathcal{" "}" "m")
+(org-notes-create-latex-wrappers "\\begin{align*}\n" "\n\\end{align*}" "a")
+(org-notes-create-latex-wrappers "^{" "}" "i")
+(org-notes-create-latex-wrappers "_{" "}" "u")
+(org-notes-create-latex-wrappers "\\hat{" "}" "h")
+(org-notes-create-latex-wrappers "\\bar{" "}" "b")
+(org-notes-create-latex-wrappers "\\text{" "}" "t")
+(org-notes-create-latex-wrappers "\\tilde{" "}" "e")
+(org-notes-create-latex-wrappers "\\vec{" "}" "v")
+(org-notes-create-latex-wrappers "\\mathbf{" "}" "o")
+(org-notes-create-latex-wrappers "\\mathbb{" "}" "l")
+(org-notes-create-latex-wrappers "\\mathbb{" "}" "l")
 
 (defun org-notes-wrap-previous-latex (&optional keep-whitespace funct)
   "Wrap latex statement just before point with '$' and render.
