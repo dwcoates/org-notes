@@ -37,7 +37,7 @@ the speaker is speaking.
 
 ## Requirements:
 
-Requires only [helm](https://github.com/emacs-helm/helm). 
+Requires only [helm](https://github.com/emacs-helm/helm). Is greatly improved by [smartparens](https://github.com/Fuco1/smartparens).
 
 ## Usage:
 
