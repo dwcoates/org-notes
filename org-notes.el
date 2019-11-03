@@ -440,8 +440,8 @@ use this automatically is the goal."
 (defun org-notes-helm-link-notes (arg)
   "Links selected note in a log drawer for current heading with prefix arg ARG.
 Also links the id of current heading in a link drawer under
-heading corresponding to selected note.  Results in a two-way
-link between two org headings.
+heading corresponding to selected note. Results in a two-way link
+between two org headings.
 
 Non-nil ARG will result in a prompt for a note to be added with
 the linking."
@@ -454,34 +454,26 @@ the linking."
              (dest-id (let ((helm-onewindow-p t))
                         (or (org-notes--helm-find) (throw 'exit nil))))
              (dest-heading (let ((case-fold-search)
-                                 (heading (car (rassoc dest-id
-                                                       org-notes-locations))))
-                             (string-match
-                              (org-notes--heading-regexp)
-                              heading)
-                             (or (match-string 3 heading)
-                                 "UNKNOWN")))
+                                 (heading (car (rassoc dest-id org-notes-locations))))
+                             (string-match (org-notes--heading-regexp) heading)
+                             (or (match-string 3 heading) "UNKNOWN")))
              (note (or arg
                        org-notes-always-add-note
                        (when org-notes-prompt-for-note
                          (y-or-n-p "Add note for link? ")))))
-        ;; When region is active, also embed the link there.  This should
-        ;; maybe be replaced with a general function, that will also be used
-        ;; during the inserting of links in the drawers.  the advantage of
-        ;; this is it gets to use built-in org-mode stuff.
+        ;; When region is active, also embed the link there. This should maybe be replaced with a
+        ;; general function, that will also be used during the inserting of links in the drawers.
+        ;; the advantage of this is it gets to use built-in org-mode stuff.
         (when (use-region-p)
           (org-insert-link
            (directory-file-name (car (org-id-find dest-id)))
            (concat "id:" dest-id)
-           (buffer-substring-no-properties
-            (region-beginning)
-            (region-end))))
+           (buffer-substring-no-properties (region-beginning) (region-end))))
         ;; Insert forward link in source note
         (org-notes--add-link-to-drawer dest-id dest-heading ">" note)
         ;; Insert backward link in linked note
         (let ((dest-loc (org-id-find dest-id 'marker)))
-          (unless dest-loc
-            (error "Cannot find the candidate's location"))
+          (unless dest-loc (error "Cannot find the candidate's location"))
           (with-current-buffer (marker-buffer dest-loc)
             (org-with-wide-buffer
              (goto-char dest-loc)
